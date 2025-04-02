@@ -10,6 +10,7 @@ TRUNCATE TABLE rate_change CASCADE;
 
 -- Reset sequences after truncating tables
 ALTER SEQUENCE account_id_seq RESTART WITH 100;
+ALTER SEQUENCE company_id_seq RESTART WITH 100;
 ALTER SEQUENCE currency_id_seq RESTART WITH 1;
 ALTER SEQUENCE exchange_pair_id_seq RESTART WITH 1;
 ALTER SEQUENCE installment_id_seq RESTART WITH 1;
@@ -18,6 +19,7 @@ ALTER SEQUENCE otp_token_id_seq RESTART WITH 1;
 ALTER SEQUENCE receiver_id_seq RESTART WITH 1;
 ALTER SEQUENCE transfer_id_seq RESTART WITH 1;
 ALTER SEQUENCE transaction_id_seq RESTART WITH 1;
+
 
 -- Populate currencies
 INSERT INTO currency (code, name, country, symbol)

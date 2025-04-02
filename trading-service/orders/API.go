@@ -1,13 +1,13 @@
 package orders
 
 import (
-	"banka1.com/middlewares"
-	"strings"
-
 	"banka1.com/db"
+	"banka1.com/middlewares"
 	"banka1.com/types"
+	"fmt"
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
+	"strings"
 )
 
 var validate = validator.New(validator.WithRequiredStructEnabled())
@@ -144,6 +144,31 @@ func CreateOrder(c *fiber.Ctx) error {
 		})
 	}
 
+	department, ok := c.Locals("department").(string)
+	if !ok {
+		return c.Status(500).JSON(types.Response{
+			Success: false,
+			Error:   "[MIDDLEWARE] Greska prilikom dohvatanja department vrednosti",
+		})
+	}
+
+	status := "pending"
+	if department == "SUPERVISOR" {
+		status = "approved"
+	}
+
+	var orderType string
+	switch {
+	case orderRequest.StopPricePerUnit == nil && orderRequest.LimitPricePerUnit == nil:
+		orderType = "market"
+	case orderRequest.StopPricePerUnit == nil && orderRequest.LimitPricePerUnit != nil:
+		orderType = "limit"
+	case orderRequest.StopPricePerUnit != nil && orderRequest.LimitPricePerUnit == nil:
+		orderType = "stop"
+	case orderRequest.StopPricePerUnit != nil && orderRequest.LimitPricePerUnit != nil:
+		orderType = "stop-limit"
+	}
+
 	order := types.Order{
 		UserID:            orderRequest.UserID,
 		AccountID:         orderRequest.AccountID,
@@ -152,8 +177,9 @@ func CreateOrder(c *fiber.Ctx) error {
 		ContractSize:      orderRequest.ContractSize,
 		StopPricePerUnit:  orderRequest.StopPricePerUnit,
 		LimitPricePerUnit: orderRequest.LimitPricePerUnit,
+		OrderType:         orderType,
 		Direction:         orderRequest.Direction,
-		Status:            "pending", // TODO: pribaviti needs approval vrednost preko token-a?
+		Status:            status,
 		ApprovedBy:        nil,
 		IsDone:            false,
 		RemainingParts:    &orderRequest.Quantity,
@@ -161,6 +187,7 @@ func CreateOrder(c *fiber.Ctx) error {
 		AON:               orderRequest.AON,
 		Margin:            orderRequest.Margin,
 	}
+
 	tx := db.DB.Create(&order)
 	if err := tx.Error; err != nil {
 		return c.Status(400).JSON(types.Response{
@@ -168,6 +195,42 @@ func CreateOrder(c *fiber.Ctx) error {
 			Error:   "Neuspelo kreiranje: " + err.Error(),
 		})
 	}
+
+	if orderRequest.Margin {
+		var security types.Security
+		if err := db.DB.First(&security, orderRequest.SecurityID).Error; err != nil {
+			return c.Status(404).JSON(types.Response{
+				Success: false,
+				Error:   "Hartija nije pronađena",
+			})
+		}
+
+		maintenanceMargin := security.LastPrice * 0.3
+		initialMarginCost := maintenanceMargin * 1.1
+
+		var actuary types.Actuary
+		if err := db.DB.Where("user_id = ?", orderRequest.UserID).First(&actuary).Error; err != nil {
+			return c.Status(403).JSON(types.Response{
+				Success: false,
+				Error:   "Korisnik nema margin nalog (nije agent ili nije registrovan kao aktuar)",
+			})
+		}
+
+		if actuary.Role != "agent" {
+			return c.Status(403).JSON(types.Response{
+				Success: false,
+				Error:   "Samo agenti mogu da koriste margin",
+			})
+		}
+
+		if actuary.LimitAmount < initialMarginCost {
+			return c.Status(403).JSON(types.Response{
+				Success: false,
+				Error:   "Nedovoljan limit za margin order",
+			})
+		}
+	}
+
 	return c.JSON(types.Response{
 		Success: true,
 		Data:    order.ID,
@@ -202,12 +265,23 @@ func ApproveDeclineOrder(c *fiber.Ctx, decline bool) error {
 	if decline {
 		order.Status = "declined"
 	} else {
-		// TODO: provera da li je vremenski ogranicen?
 		order.Status = "approved"
+		order.ApprovedBy = new(uint)
+		*order.ApprovedBy = 0
+		db.DB.Save(&order)
+
+		MatchOrder(order)
+
+		return c.JSON(types.Response{
+			Success: true,
+			Data:    fmt.Sprintf("Order %d odobren i pokrenuto izvršavanje", order.ID),
+		})
 	}
+
 	order.ApprovedBy = new(uint)
 	*order.ApprovedBy = 0 // TODO: dobavi iz token-a
 	db.DB.Save(&order)
+
 	return c.JSON(types.Response{
 		Success: true,
 		Data:    order.ID,
@@ -247,6 +321,7 @@ func DeclineOrder(c *fiber.Ctx) error {
 //	@Failure		500	{object}	types.Response				"Interna Greška Servera"
 //	@Router			/orders/{id}/approve [post]
 func ApproveOrder(c *fiber.Ctx) error {
+
 	return ApproveDeclineOrder(c, false)
 }
 

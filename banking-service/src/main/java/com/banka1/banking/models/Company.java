@@ -1,7 +1,9 @@
 package com.banka1.banking.models;
 
 import com.banka1.banking.models.helper.BusinessActivityCode;
+
 import jakarta.persistence.*;
+
 import lombok.Getter;
 import lombok.Setter;
 
@@ -10,7 +12,7 @@ import lombok.Setter;
 @Setter
 public class Company {
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column private Long id;
 
     @Column private String name;

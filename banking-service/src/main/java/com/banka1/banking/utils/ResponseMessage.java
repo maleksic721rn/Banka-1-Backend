@@ -23,7 +23,7 @@ public enum ResponseMessage {
     WRONG_NUM_OF_INSTALLMENTS("Netacan broj rata"),
     NO_DATA("Nema podataka u sistemu"),
     LOAN_NOT_FOUND("Ovaj kredit ne postoji"),
-    COMPANY_CREATED("usmenso kreirana kompanija");
+    COMPANY_CREATED("Uspesno kreirana kompanija");
 
     private final String message;
 
