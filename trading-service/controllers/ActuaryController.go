@@ -20,7 +20,7 @@ func NewActuaryController() *ActuaryController {
 	return &ActuaryController{}
 }
 
-var validate = validator.New()
+//var validate = validator.New()
 
 type Employee struct {
 	ID          int      `json:"id"`
@@ -293,4 +293,13 @@ func containsIgnoreCase(source, search string) bool {
 	sourceLower := strings.ToLower(source)
 	searchLower := strings.ToLower(search)
 	return strings.Contains(sourceLower, searchLower)
+}
+
+func InitActuaryRoutes(app *fiber.App) {
+	actuaryController := NewActuaryController()
+
+	app.Post("/actuaries", actuaryController.CreateActuary)
+	app.Get("/actuaries/all", actuaryController.GetAllActuaries)
+	app.Put("/actuaries/:ID", actuaryController.ChangeAgentLimits)
+	app.Get("/actuaries/filter", actuaryController.FilterActuaries)
 }
