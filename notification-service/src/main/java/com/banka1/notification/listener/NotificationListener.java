@@ -1,7 +1,7 @@
 package com.banka1.notification.listener;
 
+import com.banka1.common.listener.MessageHelper;
 import com.banka1.notification.DTO.response.NotificationDTO;
-import com.banka1.notification.listener.helper.MessageHelper;
 import com.banka1.notification.sender.NotificationSender;
 import jakarta.jms.JMSException;
 import jakarta.jms.Message;

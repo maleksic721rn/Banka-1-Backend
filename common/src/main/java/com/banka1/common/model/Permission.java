@@ -16,6 +16,7 @@ public enum Permission {
     DELETE_CUSTOMER("user.customer.delete"),
     LIST_CUSTOMER("user.customer.list"),
     READ_CUSTOMER("user.customer.view"),
+    OTC_TRADING("user.customer.otc_trade"),
     SET_CUSTOMER_PERMISSION("user.customer.permission");
     private final String permission;
 

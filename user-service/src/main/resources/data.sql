@@ -70,7 +70,7 @@ VALUES (4, 'Nikolina', 'Jovanović', 'nikolina.jovanovic@banka.com', 'nikolinaaa
 -- Permissions for Nikolina password: Jovan@12345
 INSERT INTO employee_permissions (employee_id, permission)
 SELECT 4, unnest(ARRAY[
-                     'READ_CUSTOMER', 'CREATE_CUSTOMER', 'DELETE_CUSTOMER', 'LIST_CUSTOMER', 'EDIT_CUSTOMER'
+                     'READ_CUSTOMER', 'CREATE_CUSTOMER', 'DELETE_CUSTOMER', 'LIST_CUSTOMER', 'EDIT_CUSTOMER', 'READ_EMPLOYEE'
                      ]);
 
 -- Employee 4: Milica password: Jovan@12345
@@ -98,6 +98,9 @@ VALUES (1, 'Marko', 'Marković', 'marko.markovic@banka.com', 'okram',
 INSERT INTO customer_permissions (customer_id, permission)
 VALUES (1, 'READ_EMPLOYEE');
 
+INSERT INTO customer_permissions (customer_id, permission)
+VALUES (1, 'OTC_TRADING');
+
 -- Customer 2: Anastasija password: Anastas12345
 INSERT INTO customer (id, first_name, last_name, email, username, phone_number,
                       birth_date, gender, address, salt_password, password)
@@ -120,6 +123,9 @@ VALUES (3, 'Jovan', 'Pavlovic', 'jpavlovic6521rn@raf.rs', 'jovan',
 INSERT INTO customer_permissions (customer_id, permission)
 VALUES (3, 'READ_EMPLOYEE');
 
+INSERT INTO customer_permissions (customer_id, permission)
+VALUES (3, 'OTC_TRADING');
+
 -- Customer 4: Nemanja password: Nemanjanemanj@1
 INSERT INTO customer (id, first_name, last_name, email, username, phone_number,
                       birth_date, gender, address, salt_password, password)
@@ -130,6 +136,9 @@ VALUES (4, 'Nemanja', 'Marjanov', 'nmarjanov6121rn@raf.rs', 'nemanja',
 -- Permissions for Nemanja
 INSERT INTO customer_permissions (customer_id, permission)
 VALUES (4, 'READ_EMPLOYEE');
+INSERT INTO customer_permissions (customer_id, permission)
+VALUES (4, 'OTC_TRADING');
+
 
 -- Customer 5: Nikola password: Nikola12345
 INSERT INTO customer (id, first_name, last_name, email, username, phone_number,

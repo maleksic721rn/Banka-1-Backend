@@ -1,7 +1,7 @@
 package com.banka1.notification.cucumber.steps;
 
+import com.banka1.common.listener.MessageHelper;
 import com.banka1.notification.DTO.response.NotificationDTO;
-import com.banka1.notification.listener.helper.MessageHelper;
 import com.banka1.notification.model.Notification;
 import com.banka1.notification.model.helper.UserType;
 import com.banka1.notification.repository.NotificationRepository;
@@ -16,7 +16,9 @@ import org.junit.jupiter.api.Assertions;
 import org.mockito.Mock;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+
 import java.util.Optional;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 

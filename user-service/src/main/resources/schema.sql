@@ -33,19 +33,36 @@ create table  if not exists customer_bank_accounts
 alter table customer_bank_accounts
     owner to user_service_user;
 
-create table if not exists  customer_permissions
-(
-    customer_id bigint not null
-        constraint fkpsok1ncykpx819odcnbmrhkvg
-            references customer,
-    permission  varchar(255)
-        constraint customer_permissions_permission_check
-            check ((permission)::text = ANY
-                   ((ARRAY ['CREATE_EMPLOYEE'::character varying, 'EDIT_EMPLOYEE'::character varying, 'DELETE_EMPLOYEE'::character varying, 'LIST_EMPLOYEE'::character varying, 'READ_EMPLOYEE'::character varying, 'SET_EMPLOYEE_PERMISSION'::character varying, 'CREATE_CUSTOMER'::character varying, 'EDIT_CUSTOMER'::character varying, 'DELETE_CUSTOMER'::character varying, 'LIST_CUSTOMER'::character varying, 'READ_CUSTOMER'::character varying, 'SET_CUSTOMER_PERMISSION'::character varying])::text[]))
-);
+CREATE TABLE IF NOT EXISTS customer_permissions (
+    customer_id BIGINT NOT NULL REFERENCES customer(id),
+    permission VARCHAR(255)
+    );
 
-alter table customer_permissions
-    owner to user_service_user;
+ALTER TABLE customer_permissions
+DROP CONSTRAINT IF EXISTS customer_permissions_permission_check;
+
+ALTER TABLE customer_permissions
+    ADD CONSTRAINT customer_permissions_permission_check
+        CHECK ((permission)::text = ANY (
+    ARRAY[
+    'CREATE_EMPLOYEE',
+    'EDIT_EMPLOYEE',
+    'DELETE_EMPLOYEE',
+    'LIST_EMPLOYEE',
+    'READ_EMPLOYEE',
+    'SET_EMPLOYEE_PERMISSION',
+    'CREATE_CUSTOMER',
+    'EDIT_CUSTOMER',
+    'DELETE_CUSTOMER',
+    'LIST_CUSTOMER',
+    'READ_CUSTOMER',
+    'SET_CUSTOMER_PERMISSION',
+    'OTC_TRADING'
+    ]
+    ));
+
+ALTER TABLE customer_permissions
+    OWNER TO user_service_user;
 
 create table  if not exists employee
 (

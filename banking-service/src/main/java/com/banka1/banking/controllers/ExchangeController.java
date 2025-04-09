@@ -97,12 +97,29 @@ public class ExchangeController {
                     "error": "Kurs nije pronađen za traženu konverziju."
                 }
             """))
+        ),
+        @ApiResponse(responseCode = "200", description = "Uspešno izračunata konverzija strane valute", content = @Content(mediaType = "application/json",
+                examples = @ExampleObject(value = """
+            {
+                "firstExchangeRate": 117.5,
+                "secondExchangeRate": 105.2,
+                "totalFee": 5.0,
+                "finalAmount": 95.0
+            }
+        """))
+        ),
+        @ApiResponse(responseCode = "400", description = "Nevalidni podaci ili nepostojeći kurs", content = @Content(mediaType = "application/json",
+                examples = @ExampleObject(value = """
+            {
+                "error": "Kurs nije pronađen za traženu konverziju."
+            }
+        """))
         )
     })
     @PostMapping("/preview")
     public ResponseEntity<?> previewExchange(@RequestBody ExchangePreviewDTO exchangePreviewDTO) {
         try {
-            Map<String, Object> previewData = exchangeService.calculatePreviewExchange(
+            Map<String, Object> previewData = exchangeService.calculatePreviewExchangeAutomatic(
                     exchangePreviewDTO.getFromCurrency(),
                     exchangePreviewDTO.getToCurrency(),
                     exchangePreviewDTO.getAmount()
@@ -114,39 +131,39 @@ public class ExchangeController {
         }
     }
 
-    @Operation(summary = "Pregled kursa za stranu valutu pre razmene", description = "Vraća kurs za obe strane valute, ukupnu proviziju i konačan iznos nakon oduzimanja provizije.")
-    @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Uspešno izračunata konverzija strane valute", content = @Content(mediaType = "application/json",
-            examples = @ExampleObject(value = """
-                {
-                    "firstExchangeRate": 117.5,
-                    "secondExchangeRate": 105.2,
-                    "totalFee": 5.0,
-                    "finalAmount": 95.0
-                }
-            """))
-        ),
-        @ApiResponse(responseCode = "400", description = "Nevalidni podaci ili nepostojeći kurs", content = @Content(mediaType = "application/json",
-            examples = @ExampleObject(value = """
-                {
-                    "error": "Kurs nije pronađen za traženu konverziju."
-                }
-            """))
-        )
-    })
-    @PostMapping("/preview-foreign")
-    public ResponseEntity<?> previewExchangeForeign(@RequestBody ExchangePreviewDTO exchangePreviewDTO) {
-        try {
-            Map<String, Object> previewData = exchangeService.calculatePreviewExchangeForeign(
-                    exchangePreviewDTO.getFromCurrency(),
-                    exchangePreviewDTO.getToCurrency(),
-                    exchangePreviewDTO.getAmount()
-            );
-            return ResponseEntity.ok(previewData);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(Map.of("error", e.getMessage()));
-        }
-    }
+//    @Operation(summary = "Pregled kursa za stranu valutu pre razmene", description = "Vraća kurs za obe strane valute, ukupnu proviziju i konačan iznos nakon oduzimanja provizije.")
+//    @ApiResponses(value = {
+//        @ApiResponse(responseCode = "200", description = "Uspešno izračunata konverzija strane valute", content = @Content(mediaType = "application/json",
+//            examples = @ExampleObject(value = """
+//                {
+//                    "firstExchangeRate": 117.5,
+//                    "secondExchangeRate": 105.2,
+//                    "totalFee": 5.0,
+//                    "finalAmount": 95.0
+//                }
+//            """))
+//        ),
+//        @ApiResponse(responseCode = "400", description = "Nevalidni podaci ili nepostojeći kurs", content = @Content(mediaType = "application/json",
+//            examples = @ExampleObject(value = """
+//                {
+//                    "error": "Kurs nije pronađen za traženu konverziju."
+//                }
+//            """))
+//        )
+//    })
+//    @PostMapping("/preview-foreign")
+//    public ResponseEntity<?> previewExchangeForeign(@RequestBody ExchangePreviewDTO exchangePreviewDTO) {
+//        try {
+//            Map<String, Object> previewData = exchangeService.calculatePreviewExchangeForeign(
+//                    exchangePreviewDTO.getFromCurrency(),
+//                    exchangePreviewDTO.getToCurrency(),
+//                    exchangePreviewDTO.getAmount()
+//            );
+//            return ResponseEntity.ok(previewData);
+//        } catch (Exception e) {
+//            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+//                    .body(Map.of("error", e.getMessage()));
+//        }
+//    }
 
 }

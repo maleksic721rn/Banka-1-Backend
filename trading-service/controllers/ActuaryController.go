@@ -1,16 +1,15 @@
 package controllers
 
 import (
-	"github.com/go-playground/validator/v10"
+	"banka1.com/db"
+	"banka1.com/dto"
+	"banka1.com/middlewares"
+	"banka1.com/services"
+	"banka1.com/types"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/log"
 	"strconv"
 	"strings"
-
-	"banka1.com/db"
-	"banka1.com/dto"
-	"banka1.com/services"
-	"banka1.com/types"
 )
 
 type ActuaryController struct {
@@ -19,8 +18,6 @@ type ActuaryController struct {
 func NewActuaryController() *ActuaryController {
 	return &ActuaryController{}
 }
-
-//var validate = validator.New()
 
 type Employee struct {
 	ID          int      `json:"id"`
@@ -31,6 +28,17 @@ type Employee struct {
 	Position    string   `json:"position"`
 	Active      bool     `json:"active"`
 	Permissions []string `json:"permissions"`
+}
+
+type ActuaryFilterResult struct {
+	ID           int     `json:"id"`
+	FirstName    string  `json:"firstName"`
+	LastName     string  `json:"lastName"`
+	Email        string  `json:"email"`
+	Department   string  `json:"department"`
+	LimitAmount  float64 `json:"limitAmount"`
+	UsedLimit    float64 `json:"usedLimit"`
+	NeedApproval bool    `json:"needApproval"`
 }
 
 type APIResponse struct {
@@ -71,23 +79,28 @@ func (ac *ActuaryController) CreateActuary(c *fiber.Ctx) error {
 		return c.Status(400).JSON(response)
 	}
 
+	// Početak transakcije
+	tx := db.DB.Begin()
+
 	actuary := types.Actuary{
 		UserID:       actuaryDTO.UserID,
-		Role:         actuaryDTO.Role,
+		Department:   actuaryDTO.Department,
 		LimitAmount:  actuaryDTO.LimitAmount,
 		UsedLimit:    actuaryDTO.UsedLimit,
 		NeedApproval: actuaryDTO.NeedApproval,
 	}
 
-	result := db.DB.Create(&actuary)
-	if result.Error != nil {
-		response := types.Response{
+	if err := tx.Create(&actuary).Error; err != nil {
+		tx.Rollback()
+		return c.Status(500).JSON(types.Response{
 			Success: false,
 			Data:    nil,
-			Error:   "Greska u bazi.",
-		}
-		return c.Status(500).JSON(response)
+			Error:   "Greška u bazi pri kreiranju aktuara.",
+		})
 	}
+
+	// Commit transakcije
+	tx.Commit()
 
 	response := types.Response{
 		Success: true,
@@ -98,7 +111,7 @@ func (ac *ActuaryController) CreateActuary(c *fiber.Ctx) error {
 	return c.Status(201).JSON(response)
 }
 
-// GetAllActuaries godoc
+// GetAllActuariesAPI godoc
 //
 //	@Summary		Dobavljanje svih aktuara
 //	@Description	Vraća listu svih zapisa aktuara iz baze podataka.
@@ -107,7 +120,7 @@ func (ac *ActuaryController) CreateActuary(c *fiber.Ctx) error {
 //	@Success		200	{object}	types.Response{data=[]types.Actuary}	"Uspešno dobavljeni svi aktuari"
 //	@Failure		500	{object}	types.Response							"Greška u bazi"
 //	@Router			/actuaries [get]
-func (ac *ActuaryController) GetAllActuaries(c *fiber.Ctx) error {
+func (ac *ActuaryController) GetAllActuariesAPI(c *fiber.Ctx) error {
 	var actuaries []types.Actuary
 	result := db.DB.Find(&actuaries)
 	if result.Error != nil {
@@ -125,6 +138,78 @@ func (ac *ActuaryController) GetAllActuaries(c *fiber.Ctx) error {
 	})
 }
 
+// GetAllActuariesDB godoc
+//
+//	@Summary		Dobavljanje svih aktuara
+//	@Description	Vraća listu svih zapisa aktuara iz baze podataka.
+//	@Tags			Actuaries
+//	@Produce		json
+//	@Success		200	{object}	types.Response{data=[]types.Actuary}	"Uspešno dobavljeni svi aktuari"
+//	@Failure		500	{object}	types.Response							"Greška u bazi"
+//	@Router			/actuaries [get]
+func (ac *ActuaryController) GetAllActuariesDB(c *fiber.Ctx) error {
+	var actuaries []types.Actuary
+	result := db.DB.Find(&actuaries)
+	if result.Error != nil {
+		log.Infof("Database error: %v\n", result.Error)
+		return c.Status(500).JSON(types.Response{
+			Success: false,
+			Error:   "Database error",
+		})
+	}
+
+	// Opcionalno: ako ne postoji ni jedan actuary, možemo vratiti 404 (Not Found)
+	if len(actuaries) == 0 {
+		return c.Status(404).JSON(types.Response{
+			Success: false,
+			Error:   "No actuaries found",
+		})
+	}
+
+	return c.JSON(types.Response{
+		Success: true,
+		Data:    actuaries,
+		Error:   "",
+	})
+}
+
+// GetActuaryByID godoc
+//
+//	@Summary		Dobavljanje aktuara po ID-ju
+//	@Description	Vraća detalje jednog aktuara na osnovu njegovog ID-ja.
+//	@Tags			Actuaries
+//	@Produce		json
+//	@Param			ID	path		string							true	"ID aktuara"
+//	@Success		200	{object}	types.Response{data=types.Actuary}	"Uspešno dobavljen aktuar"
+//	@Failure		404	{object}	types.Response					"Aktuar nije pronadjen"
+//	@Failure		500	{object}	types.Response					"Greška u bazi"
+//	@Router			/actuaries/{ID} [get]
+func (ac *ActuaryController) GetActuaryByID(c *fiber.Ctx) error {
+	id := c.Params("id") // Uzima ID iz URL-a
+
+	var actuary types.Actuary
+	result := db.DB.First(&actuary, id)
+	if result.Error != nil {
+		//if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		//	return c.Status(404).JSON(types.Response{
+		//		Success: false,
+		//		Error:   "Actuary not found",
+		//	})
+		//}
+		log.Infof("Database error: GetActuaryByID  %v\n", result.Error)
+		return c.Status(500).JSON(types.Response{
+			Success: false,
+			Error:   "Database error",
+		})
+	}
+
+	return c.JSON(types.Response{
+		Success: true,
+		Data:    actuary,
+		Error:   "",
+	})
+}
+
 // ChangeAgentLimits godoc
 //
 //	@Summary		Izmena limita aktuara
@@ -137,7 +222,7 @@ func (ac *ActuaryController) GetAllActuaries(c *fiber.Ctx) error {
 //	@Success		200			{object}	types.Response{data=types.Actuary}	"Uspešno ažurirani limiti aktuara"
 //	@Failure		400			{object}	types.Response						"Neispravan format podataka"
 //	@Failure		404			{object}	types.Response						"Aktuar nije pronadjen"
-//	@Router			/actuaries/{ID} [put]
+//	@Router			/actuaries/{id} [put]
 func (ac *ActuaryController) ChangeAgentLimits(c *fiber.Ctx) error {
 	id := c.Params("ID")
 	var actuary types.Actuary
@@ -199,69 +284,97 @@ func (ac *ActuaryController) ChangeAgentLimits(c *fiber.Ctx) error {
 //	@Failure		500			{object}	types.Response									"Greska pri preuzimanju aktuara."
 //	@Router			/actuaries/filter [get]
 //
-// POPRAVITI FILTER
-func (ac *ActuaryController) FilterActuaries(c *fiber.Ctx) error {
-	var actuaries []types.Actuary
 
-	name := c.Query("name")
-	surname := c.Query("surname")
+func (ac *ActuaryController) FilterActuaries(c *fiber.Ctx) error {
+	firstName := c.Query("firstName")
+	lastName := c.Query("lastName")
 	email := c.Query("email")
 	position := c.Query("position")
 
-	result := db.DB.Find(&actuaries)
-	if result.Error != nil {
-		return c.Status(500).JSON(types.Response{
-			Success: false,
-			Error:   "Greska pri preuzimanju aktuara.",
-		})
-	}
-
-	actuaryMap := make(map[uint]types.Actuary)
-	for _, act := range actuaries {
-		actuaryMap[act.UserID] = act
-	}
-
-	employees, err := services.GetEmployees()
+	employees, err := services.GetEmployeesFiltered(c, firstName, lastName, email, position)
 	if err != nil {
 		return c.Status(500).JSON(types.Response{
 			Success: false,
-			Error:   "Neuspesno preuzimanje zaposlenih iz user-service-a",
+			Error:   "Greška pri preuzimanju zaposlenih sa user-service.",
 		})
 	}
 
-	var filteredEmployees []dto.FilteredActuaryDTO
-	for _, emp := range employees {
-		if actuary, exists := actuaryMap[emp.ID]; exists {
-			if (name == "" || containsIgnoreCase(emp.FirstName, name)) &&
-				(surname == "" || containsIgnoreCase(emp.LastName, surname)) &&
-				(email == "" || containsIgnoreCase(emp.Email, email)) &&
-				(position == "" || emp.Position == position) {
+	var actuaries []dto.FilteredActuaryDTO
 
-				filteredEmployees = append(filteredEmployees, dto.FilteredActuaryDTO{
-					ID:           emp.ID,
-					FirstName:    emp.FirstName,
-					LastName:     emp.LastName,
-					Email:        emp.Email,
-					Role:         actuary.Role,
-					LimitAmount:  actuary.LimitAmount,
-					UsedLimit:    actuary.UsedLimit,
-					NeedApproval: actuary.NeedApproval,
-				})
-			}
-		}
+	for _, emp := range employees {
+		var actuary dto.FilteredActuaryDTO
+		//	result := db.DB.Table("actuaries").Where("user_id = ?", emp.ID).Scan(&actuary)
+		//	if result.Error != nil {
+		//		return c.Status(500).JSON(types.Response{
+		//			Success: false,
+		//			Error:   "Greška pri preuzimanju aktuara.",
+		//		})
+		//	}
+
+		actuary.ID = emp.ID
+		actuary.FirstName = emp.FirstName
+		actuary.LastName = emp.LastName
+		actuary.Email = emp.Email
+		actuary.Position = emp.Position
+		actuaries = append(actuaries, actuary)
 	}
 
-	if len(filteredEmployees) == 0 {
-		return c.JSON(types.Response{
-			Success: true,
-			Data:    []dto.FilteredActuaryDTO{},
-			Error:   "Ne postoji ni jedan aktuar.",
+	return c.JSON(types.Response{
+		Success: true,
+		Data:    actuaries,
+		Error:   "",
+	})
+}
+
+// FilterActuariesDB godoc
+//
+//	@Summary		Filtriranje aktuara
+//	@Description	Vraća listu aktuara filtriranu po imenu, prezimenu, email-u i/ili poziciji..
+//	@Tags			Actuaries
+//	@Produce		json
+//	@Param			name		query		string											false	"Filter po imenu (case-insensitive, partial match)"
+//	@Param			surname		query		string											false	"Filter po prezimenu (case-insensitive, partial match)"
+//	@Param			email		query		string											false	"Filter po email-u (case-insensitive, partial match)"
+//	@Param			position	query		string											false	"Filter po poziciji (exact match from user-service)"
+//	@Success		200			{object}	types.Response{data=[]dto.FilteredActuaryDTO}	"Uspešno filtrirani aktuari"
+//	@Failure		500			{object}	types.Response									"Greska pri preuzimanju aktuara."
+//	@Router			/actuaries/filter [get]
+func (ac *ActuaryController) FilterActuariesDB(c *fiber.Ctx) error {
+	firstName := c.Query("firstName")
+	lastName := c.Query("lastName")
+	email := c.Query("email")
+	position := c.Query("position")
+
+	var actuaries []types.Actuary
+	query := db.DB.Model(&types.Actuary{})
+
+	if firstName != "" && lastName != "" {
+		query = query.Where("LOWER(full_name) LIKE ? AND LOWER(full_name) LIKE ?", "%"+strings.ToLower(firstName)+"%", "%"+strings.ToLower(lastName)+"%")
+	} else if firstName != "" {
+		query = query.Where("LOWER(full_name) LIKE ?", "%"+strings.ToLower(firstName)+"%")
+	} else if lastName != "" {
+		query = query.Where("LOWER(full_name) LIKE ?", "%"+strings.ToLower(lastName)+"%")
+	}
+
+	if email != "" {
+		query = query.Where("LOWER(email) LIKE ?", "%"+strings.ToLower(email)+"%")
+	}
+	if position != "" {
+		query = query.Where("LOWER(position) LIKE ?", "%"+strings.ToLower(position)+"%")
+	}
+
+	result := query.Find(&actuaries)
+	if result.Error != nil {
+		log.Infof("Database error: GetFilteredActuaries  %v\n", result.Error)
+		return c.Status(500).JSON(types.Response{
+			Success: false,
+			Error:   "Database error",
 		})
 	}
 
 	return c.JSON(types.Response{
 		Success: true,
-		Data:    filteredEmployees,
+		Data:    actuaries,
 		Error:   "",
 	})
 }
@@ -289,17 +402,21 @@ func (ac *ActuaryController) ResetActuaryLimit(c *fiber.Ctx) error {
 	})
 }
 
-func containsIgnoreCase(source, search string) bool {
-	sourceLower := strings.ToLower(source)
-	searchLower := strings.ToLower(search)
-	return strings.Contains(sourceLower, searchLower)
-}
+//func containsIgnoreCase(source, search string) bool {
+//	sourceLower := strings.ToLower(source)
+//	searchLower := strings.ToLower(search)
+//	return strings.Contains(sourceLower, searchLower)
+//}
 
 func InitActuaryRoutes(app *fiber.App) {
 	actuaryController := NewActuaryController()
 
-	app.Post("/actuaries", actuaryController.CreateActuary)
-	app.Get("/actuaries/all", actuaryController.GetAllActuaries)
-	app.Put("/actuaries/:ID", actuaryController.ChangeAgentLimits)
-	app.Get("/actuaries/filter", actuaryController.FilterActuaries)
+	app.Post("/actuaries", middlewares.Auth, actuaryController.CreateActuary)
+	//app.Get("/actuaries/all", middlewares.Auth, actuaryController.GetAllActuariesAPI)
+	app.Get("/actuaries/all", middlewares.Auth, actuaryController.GetAllActuariesDB)
+	//	app.Get("/actuaries/filter", middlewares.Auth, actuaryController.FilterActuaries)
+	app.Get("/actuaries/filter", middlewares.Auth, actuaryController.FilterActuariesDB)
+	app.Get("/actuaries/:ID", middlewares.Auth, actuaryController.GetActuaryByID)
+	app.Put("/actuaries/:ID/limit", middlewares.Auth, actuaryController.ChangeAgentLimits)
+	app.Put("/actuaries/:ID/reset-used-limit", middlewares.Auth, actuaryController.ResetActuaryLimit)
 }

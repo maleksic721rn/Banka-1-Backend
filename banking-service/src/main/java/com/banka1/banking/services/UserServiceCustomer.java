@@ -1,6 +1,6 @@
 package com.banka1.banking.services;
 import com.banka1.banking.dto.CustomerDTO;
-import com.banka1.banking.listener.MessageHelper;
+import com.banka1.common.listener.MessageHelper;
 import jakarta.jms.JMSException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;

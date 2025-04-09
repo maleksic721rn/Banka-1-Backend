@@ -1,15 +1,13 @@
 package com.banka1.notification;
 
+import com.banka1.common.listener.MessageHelper;
 import com.banka1.notification.DTO.response.NotificationDTO;
 import com.banka1.notification.listener.NotificationListener;
-import com.banka1.notification.listener.helper.MessageHelper;
 import com.banka1.notification.model.Notification;
 import com.banka1.notification.model.helper.UserType;
 import com.banka1.notification.repository.NotificationRepository;
 import com.banka1.notification.sender.EmailSender;
 import com.banka1.notification.sender.FirebaseSender;
-import com.banka1.notification.sender.NotificationSender;
-import com.banka1.notification.service.EmailService;
 import jakarta.jms.JMSException;
 import jakarta.jms.Message;
 import org.junit.jupiter.api.BeforeEach;
@@ -20,11 +18,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.jms.core.JmsTemplate;
-import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;

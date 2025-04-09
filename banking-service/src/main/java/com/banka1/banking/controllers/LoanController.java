@@ -880,4 +880,16 @@ public class LoanController {
         }
     }
 
+    @GetMapping("/has-approved-loan/{userId}")
+    public ResponseEntity<?> hasApprovedLoan(@PathVariable("userId") Long userId) {
+        try {
+            boolean hasLoan = loanService.hasApprovedLoan(userId);
+            return ResponseEntity.ok(Map.of("approvedLoan", hasLoan));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", e.getMessage()));
+        }
+    }
+
+
 }

@@ -1,15 +1,17 @@
 package cron
 
 import (
-	"banka1.com/db"
-	"banka1.com/orders"
 	"encoding/json"
 	"errors"
-	"github.com/gofiber/fiber/v2/log"
-	"gorm.io/gorm"
 	"io"
 	"net/http"
 	"os"
+	"time"
+
+	"banka1.com/db"
+
+	"github.com/gofiber/fiber/v2/log"
+	"gorm.io/gorm"
 
 	"banka1.com/types"
 	"github.com/robfig/cron/v3"
@@ -33,33 +35,95 @@ type APIResponse struct {
 
 // cron posao koji resetuje limit agentu svakog dana u 23 59
 func StartScheduler() {
+	SnapshotListingsToHistory()
+
 	c := cron.New(cron.WithSeconds())
+
 	_, err := c.AddFunc("0 59 23 * * *", func() {
 		resetDailyLimits()
 	})
+
+	_, err = c.AddFunc("0 1 0 * * *", func() {
+		expireOldOptionContracts()
+	})
+
 	_, err = c.AddFunc("0/15 * * * * * ", func() {
 		createNewActuaries()
 	})
+
+	_, err = c.AddFunc("0 0 0 * * *", func() {
+		SnapshotListingsToHistory()
+	})
+
 	if err != nil {
 		log.Errorf("Greska pri pokretanju cron job-a:", err)
 		return
 	}
-	// Provera i izvrsavanje STOP ordera na svakih 5 sekundi
-	_, err = c.AddFunc("@every 5s", func() {
-		orders.ExecuteStopOrders()
-	})
-	if err != nil {
-		log.Errorf("Greška pri zakazivanju ExecuteStopOrders:", err)
+
+	c.Start()
+}
+
+func SnapshotListingsToHistory() error {
+	var listings []types.Listing
+	if err := db.DB.Find(&listings).Error; err != nil {
+		return err
 	}
 
-	// Provera i izvrsavanje STOP-LIMIT ordera na svakih 5 sekundi
-	_, err = c.AddFunc("@every 5s", func() {
-		orders.ExecuteStopLimitOrders()
-	})
-	if err != nil {
-		log.Errorf("Greška pri zakazivanju ExecuteStopLimitOrders:", err)
+	today := time.Now().Truncate(24 * time.Hour)
+
+	for _, l := range listings {
+		// proveri da li već postoji
+		var existing types.ListingHistory
+		err := db.DB.
+			Where("ticker = ? AND snapshot_date = ?", l.Ticker, today).
+			First(&existing).Error
+
+		if err == nil {
+			continue // već postoji → preskoči
+		}
+
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err // neki drugi error
+		}
+
+		history := types.ListingHistory{
+			Ticker:       l.Ticker,
+			Name:         l.Name,
+			ExchangeID:   l.ExchangeID,
+			LastRefresh:  l.LastRefresh,
+			Price:        l.Price,
+			Ask:          l.Ask,
+			Bid:          l.Bid,
+			Type:         l.Type,
+			Subtype:      l.Subtype,
+			ContractSize: l.ContractSize,
+			SnapshotDate: today,
+		}
+		if err := db.DB.Create(&history).Error; err != nil {
+			return err
+		}
 	}
-	c.Start()
+
+	return nil
+}
+
+func expireOldOptionContracts() {
+	now := time.Now()
+
+	var contracts []types.OptionContract
+	if err := db.DB.Where("settlement_at < ? AND status = ?", now, "active").Find(&contracts).Error; err != nil {
+		log.Errorf("Greška pri pronalaženju ugovora za expirovanje: %v", err)
+		return
+	}
+
+	for _, contract := range contracts {
+		contract.Status = "expired"
+		if err := db.DB.Save(&contract).Error; err != nil {
+			log.Errorf("Greška pri expirovanju ugovora ID %d: %v", contract.ID, err)
+		} else {
+			log.Infof("Ugovor ID %d označen kao 'expired'", contract.ID)
+		}
+	}
 }
 
 func resetDailyLimits() {
@@ -100,7 +164,7 @@ func createNewActuaries() {
 func employeeToActuary(employee Employee) types.Actuary {
 	actuary := types.Actuary{
 		UserID:      uint(employee.ID),
-		Role:        employee.Department,
+		Department:  employee.Department,
 		FullName:    employee.FirstName + " " + employee.LastName,
 		Email:       employee.Email,
 		LimitAmount: 100000,

@@ -3,6 +3,7 @@ package com.banka1.banking.controllers;
 import com.banka1.banking.aspect.CompanyAuthorization;
 import com.banka1.banking.dto.CreateCompanyDTO;
 
+import com.banka1.banking.models.Account;
 import com.banka1.banking.models.Company;
 import com.banka1.banking.services.CompanyService;
 
@@ -124,7 +125,7 @@ public class CompanyController {
         }
     }
 
-    @GetMapping("/{company_id}")
+    @GetMapping("/info/{company_id}")
     @Operation(summary = "Pregled detalja kompanije", description = "Detalji o kompaniji kojima pristupa zaposleni")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Detalji kompanije.", content = @Content(mediaType = "application/json",
@@ -263,6 +264,55 @@ public class CompanyController {
             return ResponseTemplate.create(ResponseEntity.status(HttpStatus.OK), true, Map.of("companies", companies), null);
         } catch (Exception e) {
             log.error("Greška prilikom trazenja kartica: ", e);
+            return ResponseTemplate.create(ResponseEntity.status(HttpStatus.BAD_REQUEST), false, null, e.getMessage());
+        }
+    }
+
+    // findAllAccountsByCompanyId from company service
+
+    @GetMapping("/accounts/{company_id}")
+    @Operation(summary = "Pregled svih racuna kompanije", description = "Izlistavanje svih racuna kompanije")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Lista racuna kompanije.", content = @Content(mediaType = "application/json",
+                    examples = @ExampleObject(value = """
+                {
+                   "data": {
+                      "accounts": [
+                        {
+                            "id": 1,
+                            "balance": 1000.0,
+                            "currency": "RSD",
+                            "type": "CURRENT"
+                        }
+                      ]
+                   },
+                   "success": true
+                 }
+            """))
+            ),
+            @ApiResponse(responseCode = "403", description = "Nedovoljna autorizacija.", content = @Content(mediaType = "application/json",
+                    examples = @ExampleObject(value = """
+                {
+                  "success": false,
+                  "error": "Nedovoljna autorizacija."
+                }
+            """))
+            ),
+            @ApiResponse(responseCode = "404", description = "Nema racuna kompanije.", content = @Content(mediaType = "application/json",
+                    examples = @ExampleObject(value = """
+                {
+                  "success": false,
+                  "error": "Nema racuna kompanije."
+                }
+            """))
+            )
+    })
+    public ResponseEntity<?> getAccountsByCompanyID(@PathVariable("company_id") Long companyId) {
+        try {
+            List<Account> accounts = companyService.findAllAccountsByCompanyId(companyId);
+            return ResponseTemplate.create(ResponseEntity.status(HttpStatus.OK), true, Map.of("accounts", accounts), null);
+        } catch (Exception e) {
+            log.error("Greška prilikom trazenja racuna: ", e);
             return ResponseTemplate.create(ResponseEntity.status(HttpStatus.BAD_REQUEST), false, null, e.getMessage());
         }
     }

@@ -1,23 +1,29 @@
 package main
 
 import (
-	"banka1.com/controllers"
+	"banka1.com/listings/forex"
+	"banka1.com/listings/futures"
+	options "banka1.com/listings/option"
+	"banka1.com/listings/securities"
+	"banka1.com/listings/stocks"
+	"banka1.com/listings/tax"
+	"banka1.com/portfolio"
+	"banka1.com/routes"
 	fiberSwagger "github.com/swaggo/fiber-swagger"
+
+	"banka1.com/controllers/orders"
+
+	"fmt"
 	"os"
+	"time"
 
 	"banka1.com/cron"
 
-	// options "banka1.com/listings/options"
 	"banka1.com/middlewares"
 
+	"banka1.com/broker"
 	"banka1.com/db"
-	_ "banka1.com/docs"
 	"banka1.com/exchanges"
-	"banka1.com/listings/forex"
-	"banka1.com/listings/futures"
-	"banka1.com/listings/stocks"
-	"banka1.com/orders"
-	"banka1.com/tax"
 	"banka1.com/types"
 	"github.com/gofiber/fiber/v2"
 	"github.com/joho/godotenv"
@@ -29,20 +35,17 @@ import (
 //	@version		1.0
 //	@description	Trading Service API
 
-//	@host		localhost:3000
-//	@BasePath	/
-
 // @securityDefinitions.apikey	BearerAuth
 // @in							header
 // @name						Authorization
 // @description				Unesite token. Primer: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 func main() {
-
 	err := godotenv.Load()
 	if err != nil {
 		panic("Error loading .env file")
 	}
 
+	broker.Connect(os.Getenv("MESSAGE_BROKER_NETWORK"), os.Getenv("MESSAGE_BROKER_HOST"))
 	db.Init()
 	cron.StartScheduler()
 
@@ -72,14 +75,46 @@ func main() {
 		log.Println("Finished loading default futures")
 	}()
 
-	// func() {
-	// 	log.Println("Starting to load default options...")
-	// 	err = options.LoadAllOptions()
-	// 	if err != nil {
-	// 		log.Printf("Warning: Failed to load options: %v", err)
-	// 	}
-	// 	log.Println("Finished loading default options")
-	// }()
+	func() {
+		log.Println("Starting to load default options...")
+		err = options.LoadAllOptions()
+		if err != nil {
+			log.Printf("Warning: Failed to load options: %v", err)
+		}
+		log.Println("Finished loading default options")
+	}()
+
+	func() {
+		log.Println("Starting to load default securities...")
+		securities.LoadAvailableSecurities()
+		log.Println("Finished loading default securities")
+	}()
+
+	func() {
+		log.Println("Starting to load default taxes...")
+		tax.LoadTax()
+		log.Println("Finished loading default taxes")
+	}()
+
+	func() {
+		log.Println("Starting to load default portfolios...")
+		portfolio.LoadPortfolios()
+		log.Println("Finished loading default portfolios")
+	}()
+
+	func() {
+		log.Println("Starting to load default orders...")
+		orders.LoadOrders()
+		log.Println("Finished loading default orders")
+	}()
+
+	func() {
+		log.Println("Starting to load default portfolios...")
+		orders.LoadPortfolios()
+		log.Println("Finished loading default portfolios")
+	}()
+
+	broker.StartListeners()
 
 	app := fiber.New()
 
@@ -88,6 +123,8 @@ func main() {
 		c.Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE")
 		return c.Next()
 	})
+
+	routes.Setup(app)
 
 	app.Get("/", middlewares.Auth, middlewares.DepartmentCheck("AGENT"), func(c *fiber.Ctx) error {
 		response := types.Response{
@@ -102,95 +139,52 @@ func main() {
 		return c.SendStatus(200)
 	})
 
-	// GetAllSecuritiesAvailable godoc
-	//	@Summary		Preuzimanje svih dostupnih hartija od vrednosti
-	//	@Description	Vraća listu svih dostupnih hartija od vrednosti.
-	//	@Tags			Securities
-	//	@Produce		json
-	//	@Success		200	{object}	types.Response{data=[]types.Security}	"Lista svih hartija od vrednosti"
-	//	@Failure		500	{object}	types.Response							"Interna greška servera pri preuzimanju ili konverziji hartija od vrednosti"
-	//	@Router			/securities/available [get]
-	//app.Get("/securities/available", getSecurities())
+	routes.SetupRoutes(app)
+	routes.Setup(app)
 
-	app.Get("/options/ticker/:ticker", func(c *fiber.Ctx) error {
-		var listings []types.Listing
-
-		ticker := c.Params("ticker")
-		if result := db.DB.Preload("Exchange").Where("ticker = ? AND type = ?", ticker, "Option").Find(&listings); result.Error != nil {
-			return c.Status(404).JSON(types.Response{
-				Success: false,
-				Data:    nil,
-				Error:   "Options not found with ticker: " + ticker,
-			})
-		}
-
-		var options []types.Option
-		for _, listing := range listings {
-			var option types.Option
-			if result := db.DB.Preload("Listing.Exchange").Where("listing_id = ?", listing.ID).First(&option); result.Error != nil {
-				return c.Status(500).JSON(types.Response{
-					Success: false,
-					Data:    nil,
-					Error:   "Failed to fetch option details: " + result.Error.Error(),
-				})
-			}
-			options = append(options, option)
-		}
-
-		return c.JSON(types.Response{
-			Success: true,
-			Data: map[string]interface{}{
-				"listing": listings,
-				"details": options,
-			},
-			Error: "",
-		})
-	})
-
-	app.Get("/options/symbol/:symbol", func(c *fiber.Ctx) error {
-		var listings []types.Listing
-		symbol := c.Params("symbol")
-		if result := db.DB.Preload("Exchange").Where("ticker LIKE ? AND type = ?", symbol+"%", "Option").Find(&listings); result.Error != nil {
-			return c.Status(404).JSON(types.Response{
-				Success: false,
-				Data:    nil,
-				Error:   "Options not found with symbol: " + symbol,
-			})
-		}
-
-		var options []types.Option
-		for _, listing := range listings {
-			var option types.Option
-			if result := db.DB.Preload("Listing.Exchange").Where("listing_id = ?", listing.ID).First(&option); result.Error != nil {
-				return c.Status(500).JSON(types.Response{
-					Success: false,
-					Data:    nil,
-					Error:   "Failed to fetch option details: " + result.Error.Error(),
-				})
-			}
-			options = append(options, option)
-		}
-
-		return c.JSON(types.Response{
-			Success: true,
-			Data: map[string]interface{}{
-				"listing": listings,
-				"details": options,
-			},
-		})
-	})
-
-	controllers.InitOrderRoutes(app)
-	controllers.InitActuaryRoutes(app)
-	controllers.InitSecuritiesController(app)
-	controllers.InitFutureController(app)
-	controllers.InitForexController(app)
-	controllers.InitStockController(app)
-	controllers.InitExchangeController(app)
-
+	// svaki put kad menjate swagger dokumentaciju (komentari iznad funkcija u controllerima), uradite "swag init" da bi se azuriralo
 	app.Get("/swagger/*", fiberSwagger.WrapHandler)
+
+	ticker := time.NewTicker(5000 * time.Millisecond)
+	done := make(chan bool)
+
+	go func() {
+		for {
+			select {
+			case <-done:
+				return
+			case <-ticker.C:
+				checkUncompletedOrders()
+			}
+		}
+	}()
 
 	port := os.Getenv("LISTEN_PATH")
 	log.Printf("Swagger UI available at http://localhost%s/swagger/index.html", port)
 	log.Fatal(app.Listen(port))
+
+	ticker.Stop()
+	done <- true
+}
+
+func checkUncompletedOrders() {
+	var undoneOrders []types.Order
+
+	fmt.Println("Proveravanje neizvršenih naloga...")
+
+	db.DB.Where("status = ? AND is_done = ?", "approved", false).Find(&undoneOrders)
+	fmt.Printf("Pronadjeno %v neizvršenih naloga\n", len(undoneOrders))
+	previousLength := -1
+
+	for len(undoneOrders) > 0 && previousLength != len(undoneOrders) {
+		fmt.Printf("Preostalo još %v neizvršenih naloga\n", len(undoneOrders))
+		for _, order := range undoneOrders {
+			if orders.CanExecuteAny(order) {
+				orders.MatchOrder(order)
+				break
+			}
+		}
+		previousLength = len(undoneOrders)
+		db.DB.Where("status = ? AND is_done = ?", "approved", false).Find(&undoneOrders)
+	}
 }

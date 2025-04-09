@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -490,4 +491,38 @@ func TestGetSecurities(t *testing.T) {
 	}
 
 	assert.GreaterOrEqual(t, len(securities), 1)
+}
+
+func TestCreateOrder_AllAONMarginCombinations(t *testing.T) {
+	combinations := []struct {
+		AON    bool
+		Margin bool
+	}{
+		{false, false},
+		{true, false},
+		{false, true},
+		{true, true},
+	}
+
+	for _, combo := range combinations {
+		t.Run(fmt.Sprintf("AON_%v_Margin_%v", combo.AON, combo.Margin), func(t *testing.T) {
+			orderRequest := map[string]interface{}{
+				"user_id":       1,
+				"account_id":    1001,
+				"security_id":   1,
+				"quantity":      10,
+				"contract_size": 1,
+				"direction":     "buy",
+				"aon":           combo.AON,
+				"margin":        combo.Margin,
+			}
+
+			resp := makeRequest(t, "POST", "/orders", orderRequest, map[string]string{
+				"X-Test-Auth":       "true",
+				"X-Test-Department": "AGENT",
+			})
+
+			assert.Equal(t, 200, resp.StatusCode, fmt.Sprintf("Expected 200 but got %d for AON=%v, Margin=%v", resp.StatusCode, combo.AON, combo.Margin))
+		})
+	}
 }

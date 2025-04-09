@@ -21,6 +21,23 @@ type Listing struct {
 	UpdatedAt    time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 }
 
+type ListingHistory struct {
+	ID           uint   `gorm:"primaryKey"`
+	Ticker       string `gorm:"index:idx_ticker_date,unique"`
+	Name         string
+	ExchangeID   uint
+	Exchange     Exchange `gorm:"foreignKey:ExchangeID"`
+	LastRefresh  time.Time
+	Price        float32
+	Ask          float32
+	Bid          float32
+	Type         string
+	Subtype      string
+	ContractSize int
+	SnapshotDate time.Time `gorm:"index:idx_ticker_date,unique"` // za koji dan je snapshot
+	CreatedAt    time.Time `gorm:"autoCreateTime"`
+}
+
 type ListingDailyPriceInfo struct {
 	ID        uint      `gorm:"primaryKey" json:"id,omitempty"`
 	ListingID uint      `gorm:"not null" json:"listing_id,omitempty"`

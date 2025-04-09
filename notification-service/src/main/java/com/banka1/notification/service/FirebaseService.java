@@ -47,6 +47,9 @@ public class FirebaseService {
     }
 
     public void sendNotification(String title, String body, String deviceToken, Map<String, String> data) {
+        if (data == null) {
+            data = Map.of();
+        }
         Message message = Message.builder()
                 .setToken(deviceToken)
                 .setNotification(Notification.builder()

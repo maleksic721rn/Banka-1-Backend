@@ -20,4 +20,5 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
     Optional<Account> findByTypeAndCurrencyType(AccountType accountType,CurrencyType currencyType);
     Optional<Account> findByAccountNumber(String accountNumber);
     Account findByOwnerIDAndCurrencyType(Long ownerId, CurrencyType currencyType);
+    List<Account> findByCompanyId(Long companyId);
 }

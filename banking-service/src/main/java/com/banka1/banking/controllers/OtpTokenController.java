@@ -93,6 +93,7 @@ public class OtpTokenController {
                 try {
                     transferService.processTransfer(transferId);
                 } catch (Exception e){
+                    System.out.println(e);
                     return ResponseTemplate.create(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR),
                             false, null, "Transakcija nije uspela: " + e.getMessage());
                 }

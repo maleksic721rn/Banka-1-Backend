@@ -36,6 +36,7 @@ services:
     image: 'apache/activemq-classic:latest'
     ports:
       - '61616:61616'
+      - '61613:61613'
     healthcheck:
       test: [ "CMD-SHELL", "echo 'OK'" ]
       interval: 10s
@@ -45,6 +46,8 @@ services:
       - broker-net
   notification-service:
     image: 'notification-service:0.0.1-SNAPSHOT'
+    ports:
+      - '8083:8080'
     networks:
       - broker-net
       - notification-net
@@ -191,10 +194,48 @@ services:
       start_period: 10s
   trading-service:
     image: 'trading-service:0.0.1-SNAPSHOT'
+    ports:
+      - '3000:3000'
+    depends_on:
+      trading-db:
+        condition: service_healthy
+      message-broker:
+        condition: service_healthy
+    networks:
+      - proxy-net
+      - trading-net
+      - broker-net
+    environment:
+      - POSTGRES_DSN=postgres://trading_service_user:trading_service_password@trading-db:5432/trading_db?sslmode=disable
+      - USER_SERVICE=http://user-service:8081
+      - BANKING_SERVICE=http://banking-service:8082
+      - MESSAGE_BROKER_NETWORK=tcp
+      - MESSAGE_BROKER_HOST=message-broker:61613
+    healthcheck:
+      test: [ "CMD-SHELL", "echo OK" ]
+  trading-db:
+    image: 'postgres:17-alpine'
+    ports:
+      - '5435:5432'
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U trading_service_user -d trading_db" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - trading-net
+    environment:
+      POSTGRES_USER: trading_service_user
+      POSTGRES_PASSWORD: trading_service_password
+      POSTGRES_DB: trading_db
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=en_US.UTF-8"
+      LANG: en_US.utf8
+      LC_ALL: en_US.utf8
 networks:
   broker-net: null
   notification-net: null
   user-net: null
   proxy-net: null
   banking-net: null
-
+  trading-net: null

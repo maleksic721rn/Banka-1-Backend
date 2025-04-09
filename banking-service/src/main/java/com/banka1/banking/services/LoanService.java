@@ -5,7 +5,6 @@ import com.banka1.banking.dto.MoneyTransferDTO;
 import com.banka1.banking.dto.NotificationDTO;
 import com.banka1.banking.dto.request.CreateLoanDTO;
 import com.banka1.banking.dto.request.LoanUpdateDTO;
-import com.banka1.banking.listener.MessageHelper;
 import com.banka1.banking.models.Account;
 import com.banka1.banking.models.Installment;
 import com.banka1.banking.models.Loan;
@@ -17,6 +16,7 @@ import com.banka1.banking.repository.AccountRepository;
 import com.banka1.banking.repository.InstallmentsRepository;
 import com.banka1.banking.repository.LoanRepository;
 import com.banka1.banking.repository.RateChangeRepository;
+import com.banka1.common.listener.MessageHelper;
 import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -64,7 +64,9 @@ public class LoanService {
                 .orElseThrow(() -> new RuntimeException("Racun nije pronadjen"));
 
         if (account == null) {return null;}
-
+        if(createLoanDTO.getLoanAmount() <= 0){
+            throw new RuntimeException("Vrednost kredita mora biti pozitivna");
+        }
         // Create new loan manually
         var loan = new Loan();
         loan.setAccount(account);
@@ -490,4 +492,21 @@ public class LoanService {
 
         installmentsRepository.save(installment);
     }
+
+    public boolean hasApprovedLoan(Long userId) {
+        List<Account> userAccounts = accountRepository.findByOwnerID(userId);
+
+        for (Account acc : userAccounts) {
+            List<Loan> loans = loanRepository.getLoansByAccount(acc);
+
+            for (Loan loan : loans) {
+                if (loan.getPaymentStatus() != PaymentStatus.PAID_OFF && loan.getPaymentStatus() == PaymentStatus.APPROVED) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+
 }

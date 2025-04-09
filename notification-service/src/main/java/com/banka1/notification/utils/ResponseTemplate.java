@@ -48,7 +48,8 @@ public final class ResponseTemplate {
         } else {
             return fromBuilder.body(Map.of(
                     "success", false,
-                    "error", error == null ? UNKNOWN_ERROR : error
+                    "error", error == null ? UNKNOWN_ERROR : error,
+                    "data", data == null ? Map.of() : data
             ));
         }
     }

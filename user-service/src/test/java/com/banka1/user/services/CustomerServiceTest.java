@@ -1,5 +1,7 @@
 package com.banka1.user.services;
 
+import com.banka1.common.listener.MessageHelper;
+import com.banka1.common.model.Permission;
 import com.banka1.user.DTO.banking.CreateAccountWithoutOwnerIdDTO;
 import com.banka1.user.DTO.banking.helper.AccountStatus;
 import com.banka1.user.DTO.banking.helper.AccountSubtype;
@@ -9,14 +11,11 @@ import com.banka1.user.DTO.request.CreateCustomerRequest;
 import com.banka1.user.DTO.request.UpdateCustomerRequest;
 import com.banka1.user.DTO.response.CustomerPageResponse;
 import com.banka1.user.DTO.response.CustomerResponse;
-import com.banka1.user.listener.MessageHelper;
 import com.banka1.user.model.Customer;
 import com.banka1.user.model.helper.Gender;
-import com.banka1.common.model.Permission;
 import com.banka1.user.repository.CustomerRepository;
 import com.banka1.user.service.CustomerService;
 import com.banka1.user.service.SetPasswordService;
-import org.hibernate.annotations.Any;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;

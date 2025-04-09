@@ -31,6 +31,6 @@ type CreateOrderRequest struct {
 	StopPricePerUnit  *float64 `json:"stop_price_per_unit"`
 	LimitPricePerUnit *float64 `json:"limit_price_per_unit"`
 	Direction         string   `json:"direction" validate:"required,oneofci=buy sell"`
-	AON               bool     `json:"aon" validate:"required"`
-	Margin            bool     `json:"margin" validate:"required"`
+	AON               bool     `json:"aon"`
+	Margin            bool     `json:"margin"`
 }

@@ -3,7 +3,6 @@ package com.banka1.banking.services;
 import com.banka1.banking.dto.CustomerDTO;
 import com.banka1.banking.dto.ExchangeMoneyTransferDTO;
 import com.banka1.banking.dto.NotificationDTO;
-import com.banka1.banking.listener.MessageHelper;
 import com.banka1.banking.models.Account;
 import com.banka1.banking.models.Currency;
 import com.banka1.banking.models.ExchangePair;
@@ -16,6 +15,8 @@ import com.banka1.banking.repository.CurrencyRepository;
 import com.banka1.banking.repository.ExchangePairRepository;
 import com.banka1.banking.repository.TransferRepository;
 import com.banka1.banking.utils.ExcludeFromGeneratedJacocoReport;
+import com.banka1.common.listener.MessageHelper;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jms.core.JmsTemplate;
 import org.springframework.stereotype.Service;
@@ -24,6 +25,7 @@ import java.util.Map;
 import java.util.Optional;
 
 @Service
+@Slf4j
 public class ExchangeService {
 
     private final AccountRepository accountRepository;
@@ -72,6 +74,9 @@ public class ExchangeService {
             return false;
         }
 
+        if(exchangeMoneyTransferDTO.getAmount() <= 0){
+            return false;
+        }
         return fromAccount.getOwnerID().equals(toAccount.getOwnerID());
     }
 
@@ -158,8 +163,10 @@ public class ExchangeService {
 
     @ExcludeFromGeneratedJacocoReport("Wrapper method")
     public Map<String, Object> calculatePreviewExchangeAutomatic(String fromCurrency, String toCurrency, Double amount) {
-        if(fromCurrency.equals("RSD") || toCurrency.equals("RSD"))
+        if(fromCurrency.equals("RSD") || toCurrency.equals("RSD")){
+
             return calculatePreviewExchange(fromCurrency, toCurrency, amount);
+            }
         else
             return calculatePreviewExchangeForeign(fromCurrency, toCurrency, amount);
     }
@@ -217,7 +224,6 @@ public class ExchangeService {
         if (fromCurrency.equalsIgnoreCase("RSD") || toCurrency.equalsIgnoreCase("RSD")) {
             throw new RuntimeException("Ova metoda je samo za konverziju strane valute u stranu valutu.");
         }
-
         CurrencyType from = parseCurrency(fromCurrency);
         CurrencyType to = parseCurrency(toCurrency);
         CurrencyType rsd = CurrencyType.RSD;

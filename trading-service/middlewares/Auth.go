@@ -35,10 +35,17 @@ func Auth(c *fiber.Ctx) error {
 
 	fmt.Println(claims)
 
+	fmt.Println("token: ", token)
+
+	c.Locals("token", token)
+
 	c.Locals("claims", claims)
 	c.Locals("user_id", claims["id"])
 	c.Locals("position", claims["position"])
 	c.Locals("department", claims["department"])
+	c.Locals("permissions", claims["permissions"])
+	c.Locals("is_admin", claims["isAdmin"])
+	c.Locals("is_employed", claims["isEmployed"])
 	return c.Next()
 }
 
@@ -55,5 +62,28 @@ func DepartmentCheck(requiredDept string) fiber.Handler {
 
 		// Nastavi sa sledećim middleware-om ili handler-om
 		return c.Next()
+	}
+}
+
+func RequirePermission(requiredPermission string) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		permissions, ok := c.Locals("permissions").([]interface{})
+		if !ok {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"success": false,
+				"error":   "Unauthorized: No permissions found",
+			})
+		}
+
+		for _, perm := range permissions {
+			if strPerm, ok := perm.(string); ok && strPerm == requiredPermission {
+				return c.Next()
+			}
+		}
+
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"error":   fmt.Sprintf("Unauthorized: Missing permission '%s'", requiredPermission),
+		})
 	}
 }

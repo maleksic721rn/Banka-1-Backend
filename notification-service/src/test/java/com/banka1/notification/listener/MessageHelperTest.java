@@ -1,7 +1,7 @@
 package com.banka1.notification.listener;
 
 
-import com.banka1.notification.listener.helper.MessageHelper;
+import com.banka1.common.listener.MessageHelper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.jms.TextMessage;
 import jakarta.validation.ConstraintViolation;
@@ -17,7 +17,8 @@ import java.util.Collections;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class MessageHelperTest {

@@ -4,22 +4,24 @@ import com.banka1.banking.dto.CustomerDTO;
 import com.banka1.banking.dto.InternalTransferDTO;
 import com.banka1.banking.dto.MoneyTransferDTO;
 import com.banka1.banking.dto.NotificationDTO;
-import com.banka1.banking.listener.MessageHelper;
 import com.banka1.banking.models.Account;
 import com.banka1.banking.models.Currency;
 import com.banka1.banking.models.Transaction;
 import com.banka1.banking.models.Transfer;
+import com.banka1.banking.models.helper.CurrencyType;
 import com.banka1.banking.models.helper.TransferStatus;
 import com.banka1.banking.models.helper.TransferType;
 import com.banka1.banking.repository.AccountRepository;
 import com.banka1.banking.repository.CurrencyRepository;
 import com.banka1.banking.repository.TransactionRepository;
 import com.banka1.banking.repository.TransferRepository;
+import com.banka1.common.listener.MessageHelper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jms.core.JmsTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
@@ -68,7 +70,7 @@ public class TransferService {
         this.bankAccountUtils = bankAccountUtils;
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.SERIALIZABLE)
     public String processTransfer(Long transferId) {
         Transfer transfer = transferRepository.findById(transferId)
                 .orElseThrow(() -> new RuntimeException("Transfer not found"));
@@ -81,90 +83,417 @@ public class TransferService {
         };
     }
 
-    // To be called after the initial amount is stripped from the account initiating the transfer
-    // Completes a transfer between two accounts of differing currency types
+    /**
+     * Completes a currency exchange transfer between two accounts with different currencies.
+     * This method is called after the initial amount has been deducted from the source account.
+     *
+     * @param transfer    The transfer details
+     * @param fromAccount The source account
+     * @param toAccount   The destination account
+     * @return Map containing exchange details
+     */
     @Transactional
-    protected Map<String, Object> performCurrencyExchangeTransfer(Transfer transfer, Account fromAccount, Account toAccount) {
-        Account toBankAccount = bankAccountUtils.getBankAccountForCurrency(fromAccount.getCurrencyType());
-        Account fromBankAccount = bankAccountUtils.getBankAccountForCurrency(toAccount.getCurrencyType());
+    protected Map<String, Object> performCurrencyExchangeTransfer(
+            Transfer transfer,
+            Account fromAccount,
+            Account toAccount
+    ) {
+        // Validate inputs
+        if (transfer.getAmount() <= 0) {
+            throw new IllegalArgumentException("Transfer amount must be positive");
+        }
 
-        toBankAccount.setBalance(toBankAccount.getBalance() + transfer.getAmount());
+        CurrencyType fromCurrencyType = fromAccount.getCurrencyType();
+        CurrencyType toCurrencyType = toAccount.getCurrencyType();
 
-        Map<String, Object> exchange = exchangeService.calculatePreviewExchangeAutomatic(
-                transfer.getFromCurrency().getCode().toString(),
-                transfer.getToCurrency().getCode().toString(),
-                transfer.getAmount()
-        );
+        if (fromCurrencyType == CurrencyType.RSD) {
+            log.debug("Performing RSD to Foreign exchange");
+            return performRsdToForeign(transfer.getAmount(), fromAccount, toAccount);
+        } else if (toCurrencyType == CurrencyType.RSD) {
+            log.debug("Performing Foreign to RSD exchange");
+            return performForeignToRsd(transfer.getAmount(), fromAccount, toAccount);
+        }
+        log.debug("Performing Foreign to Foreign exchange");
+        return performForeignToForeignExchange(transfer, fromAccount, toAccount);
+    }
 
-        Double exchangedAmount = (Double) exchange.get("finalAmount");
-
-        fromBankAccount.setBalance(fromBankAccount.getBalance() - exchangedAmount);
-        toAccount.setBalance(toAccount.getBalance() + exchangedAmount);
-
+    /**
+     * Performs a foreign-to-foreign currency exchange via RSD as an intermediate currency.
+     * Example: Customer exchanges 100 EUR for USD
+     * 1) Transfer 100 EUR from customer's account to bank's EUR account
+     * 2) Convert EUR to RSD (applying exchange fee)
+     * 3) Convert RSD to USD (applying exchange fee)
+     * 4) Transfer resulting USD from bank's USD account to customer's account
+     * 5) "Spawn" exchange fees on bank's RSD account
+     */
+    private Map<String, Object> performForeignToForeignExchange(
+            Transfer transfer,
+            Account fromAccount,
+            Account toAccount
+    ) {
+        Currency rsd = currencyRepository.getByCode(CurrencyType.RSD);
         Currency fromCurrency = currencyRepository.getByCode(fromAccount.getCurrencyType());
         Currency toCurrency = currencyRepository.getByCode(toAccount.getCurrencyType());
-
-        Transfer transferToBank = new Transfer();
-        transferToBank.setFromAccountId(fromAccount);
-        transferToBank.setToAccountId(toBankAccount);
-        transferToBank.setAmount(transfer.getAmount());
-        transferToBank.setStatus(TransferStatus.COMPLETED);
-        transferToBank.setType(TransferType.EXTERNAL);
-        transferToBank.setPaymentDescription("Promena valute");
-        transferToBank.setReceiver(toBankAccount.getCompany().getName());
-        transferToBank.setFromCurrency(fromCurrency);
-        transferToBank.setToCurrency(fromCurrency);
-        transferToBank.setCreatedAt(System.currentTimeMillis());
-
         CustomerDTO receiver = userServiceCustomer.getCustomerById(toAccount.getOwnerID());
 
-        Transfer transferFromBank = new Transfer();
-        transferFromBank.setFromAccountId(fromBankAccount);
-        transferFromBank.setToAccountId(toAccount);
-        transferFromBank.setAmount(exchangedAmount);
-        transferFromBank.setStatus(TransferStatus.COMPLETED);
-        transferFromBank.setType(TransferType.EXTERNAL);
-        transferFromBank.setPaymentDescription("Promena valute");
-        transferFromBank.setReceiver(receiver.getFirstName() + " " + receiver.getLastName());
-        transferFromBank.setFromCurrency(toCurrency);
-        transferFromBank.setToCurrency(toCurrency);
-        transferFromBank.setCreatedAt(System.currentTimeMillis());
+        Account fromCurrencyBankAccount = bankAccountUtils.getBankAccountForCurrency(fromAccount.getCurrencyType());
+        Account rsdBankAccount = bankAccountUtils.getBankAccountForCurrency(CurrencyType.RSD);
+        Account toCurrencyBankAccount = bankAccountUtils.getBankAccountForCurrency(toAccount.getCurrencyType());
 
-        Transaction transactionToBank = new Transaction();
-        transactionToBank.setBankOnly(true);
-        transactionToBank.setFromAccountId(fromAccount);
-        transactionToBank.setToAccountId(toBankAccount);
-        transactionToBank.setAmount(transfer.getAmount());
-        transactionToBank.setCurrency(fromCurrency);
-        transactionToBank.setFinalAmount(transfer.getAmount());
-        transactionToBank.setFee(0.0);
-        transactionToBank.setTimestamp(System.currentTimeMillis());
-        transactionToBank.setDescription("Exchange transaction");
-        transactionToBank.setTransfer(transferToBank);
+        Map<String, Object> firstExchange = exchangeService.calculatePreviewExchangeAutomatic(
+                fromAccount.getCurrencyType().toString(),
+                "RSD",
+                transfer.getAmount()
+        );
+        Double firstExchangedAmount = (Double) firstExchange.get("finalAmount");
+        Double firstExchangeProvision = (Double) firstExchange.get("provision");
 
-        Transaction transactionFromBank = new Transaction();
-        transactionFromBank.setBankOnly(true);
-        transactionFromBank.setFromAccountId(fromBankAccount);
-        transactionFromBank.setToAccountId(toAccount);
-        transactionFromBank.setAmount(exchangedAmount);
-        transactionFromBank.setCurrency(toCurrency);
-        transactionFromBank.setFinalAmount(exchangedAmount);
-        transactionFromBank.setFee(0.0);
-        transactionFromBank.setTimestamp(System.currentTimeMillis());
-        transactionFromBank.setDescription("Exchange transaction");
-        transactionFromBank.setTransfer(transferFromBank);
+        Map<String, Object> secondExchange = exchangeService.calculatePreviewExchangeAutomatic(
+                "RSD",
+                toAccount.getCurrencyType().toString(),
+                firstExchangedAmount
+        );
+        Double secondExchangedAmount = (Double) secondExchange.get("finalAmount");
+        Double secondExchangeProvision = (Double) secondExchange.get("provision");
 
-        transferRepository.save(transferToBank);
-        transferRepository.save(transferFromBank);
 
-        transactionRepository.save(transactionToBank);
-        transactionRepository.save(transactionFromBank);
 
-        accountRepository.save(fromBankAccount);
-        accountRepository.save(toBankAccount);
+        fromAccount.setBalance(fromAccount.getBalance() - transfer.getAmount());
+        fromCurrencyBankAccount.setBalance(fromCurrencyBankAccount.getBalance() + transfer.getAmount());
+
+        rsdBankAccount.setBalance(rsdBankAccount.getBalance() + firstExchangeProvision + secondExchangeProvision);
+
+        toCurrencyBankAccount.setBalance(toCurrencyBankAccount.getBalance() - secondExchangedAmount);
+        toAccount.setBalance(toAccount.getBalance() + secondExchangedAmount);
+
+
+        Transfer transferToBank = createTransfer(
+                fromAccount,
+                fromCurrencyBankAccount,
+                transfer.getAmount(),
+                "Promena valute",
+                fromCurrencyBankAccount.getCompany().getName(),
+                fromCurrency,
+                fromCurrency
+        );
+
+        Transfer transferFromBank = createTransfer(
+                toCurrencyBankAccount,
+                toAccount,
+                secondExchangedAmount,
+                "Promena valute",
+                receiver.getFirstName() + " " + receiver.getLastName(),
+                toCurrency,
+                toCurrency
+        );
+        Transfer feeTransfer = createTransfer(
+                fromAccount,
+                rsdBankAccount,
+                firstExchangeProvision + secondExchangeProvision,
+                "Exchange fee from " + fromCurrency.getCode() + " to " + toCurrency.getCode(),
+                rsdBankAccount.getCompany().getName(),
+                fromCurrency,
+                rsd
+        );
+
+
+        Transaction transactionToBank = createTransaction(
+                true,
+                fromAccount,
+                fromCurrencyBankAccount,
+                transfer.getAmount(),
+                fromCurrency,
+                0.0,
+                "Exchange transaction: Foreign to RSD",
+                transferToBank
+        );
+
+        Transaction transactionFromBank = createTransaction(
+                true,
+                toCurrencyBankAccount,
+                toAccount,
+                secondExchangedAmount,
+                toCurrency,
+                0.0,
+                "Exchange transaction: RSD to Foreign",
+                transferFromBank
+        );
+        Transaction feeTransaction = createFeeTransaction(
+                rsdBankAccount,
+                fromAccount,
+                firstExchangeProvision + secondExchangeProvision,
+                rsd,
+                "Exchange fee from " + fromCurrency.getCode() + " to " + toCurrency.getCode(),
+                feeTransfer
+        );
+
+        saveTransfersAndTransactions(
+                List.of(transferToBank, transferFromBank, feeTransfer),
+                List.of(transactionToBank, transactionFromBank, feeTransaction),
+                List.of(fromCurrencyBankAccount, toCurrencyBankAccount, rsdBankAccount)
+        );
+
+        return secondExchange;
+    }
+
+    /**
+     * Performs an exchange from RSD to a foreign currency.
+     */
+    private Map<String, Object> performRsdToForeign(Double amount, Account fromAccount, Account toAccount) {
+        if (amount <= 0) {
+            throw new IllegalArgumentException("Amount must be positive");
+        }
+        if (fromAccount.getCurrencyType() != CurrencyType.RSD || toAccount.getCurrencyType() == CurrencyType.RSD) {
+            throw new IllegalArgumentException("Invalid account currency types");
+        }
+
+        Currency rsd = currencyRepository.getByCode(CurrencyType.RSD);
+        Currency toCurrency = currencyRepository.getByCode(toAccount.getCurrencyType());
+        Account rsdBankAccount = bankAccountUtils.getBankAccountForCurrency(rsd.getCode());
+        Account foreignBankAccount = bankAccountUtils.getBankAccountForCurrency(toAccount.getCurrencyType());
+        CustomerDTO receiver = userServiceCustomer.getCustomerById(toAccount.getOwnerID());
+
+        Map<String, Object> exchange = exchangeService.calculatePreviewExchangeAutomatic(
+                "RSD",
+                toAccount.getCurrencyType().toString(),
+                amount
+        );
+
+        Double finalAmount = (Double) exchange.get("finalAmount");
+        Double provision = (Double) exchange.get("provision");
+
+        fromAccount.setBalance(fromAccount.getBalance() - amount);
+        rsdBankAccount.setBalance(rsdBankAccount.getBalance() + amount);
+        foreignBankAccount.setBalance(foreignBankAccount.getBalance() - finalAmount);
+        toAccount.setBalance(toAccount.getBalance() + finalAmount);
+
+        Transfer transferToBank = createTransfer(
+                fromAccount,
+                rsdBankAccount,
+                amount,
+                "Promena valute",
+                rsdBankAccount.getCompany().getName(),
+                rsd,
+                rsd
+        );
+
+        Transfer transferFromBank = createTransfer(
+                foreignBankAccount,
+                toAccount,
+                finalAmount,
+                "Promena valute",
+                receiver.getFirstName() + " " + receiver.getLastName(),
+                toCurrency,
+                toCurrency
+        );
+
+        Transaction transactionToBank = createTransaction(
+                true,
+                fromAccount,
+                rsdBankAccount,
+                amount,
+                rsd,
+                0.0,
+                "Exchange transaction",
+                transferToBank
+        );
+
+        Transaction transactionFromBank = createTransaction(
+                true,
+                foreignBankAccount,
+                toAccount,
+                finalAmount,
+                toCurrency,
+                provision,
+                "Exchange transaction",
+                transferFromBank
+        );
+
+        saveTransfersAndTransactions(
+                List.of(transferToBank, transferFromBank),
+                List.of(transactionToBank, transactionFromBank),
+                List.of(rsdBankAccount, foreignBankAccount)
+        );
 
         return exchange;
     }
+
+    /**
+     * Performs an exchange from a foreign currency to RSD.
+     */
+    private Map<String, Object> performForeignToRsd(Double amount, Account fromAccount, Account toAccount) {
+        if (amount <= 0) {
+            throw new IllegalArgumentException("Amount must be positive");
+        }
+        if (fromAccount.getCurrencyType() == CurrencyType.RSD || toAccount.getCurrencyType() != CurrencyType.RSD) {
+            throw new IllegalArgumentException("Invalid account currency types");
+        }
+
+        Currency rsd = currencyRepository.getByCode(CurrencyType.RSD);
+        Currency fromCurrency = currencyRepository.getByCode(fromAccount.getCurrencyType());
+
+        Map<String, Object> exchange = exchangeService.calculatePreviewExchangeAutomatic(
+                fromAccount.getCurrencyType().toString(),
+                "RSD",
+                amount
+        );
+
+        Double finalAmount = (Double) exchange.get("finalAmount");
+        Double provision = (Double) exchange.get("provision");
+
+        CustomerDTO receiver = userServiceCustomer.getCustomerById(toAccount.getOwnerID());
+
+        Account rsdBankAccount = bankAccountUtils.getBankAccountForCurrency(rsd.getCode());
+        Account foreignBankAccount = bankAccountUtils.getBankAccountForCurrency(fromAccount.getCurrencyType());
+
+        fromAccount.setBalance(fromAccount.getBalance() - amount);
+        foreignBankAccount.setBalance(foreignBankAccount.getBalance() + amount);
+        rsdBankAccount.setBalance(rsdBankAccount.getBalance() - finalAmount);
+        toAccount.setBalance(toAccount.getBalance() + finalAmount);
+
+        Transfer transferToBank = createTransfer(
+                fromAccount,
+                foreignBankAccount,
+                amount,
+                "Promena valute",
+                rsdBankAccount.getCompany().getName(),
+                fromCurrency,
+                rsd
+        );
+
+        Transfer transferFromBank = createTransfer(
+                rsdBankAccount,
+                toAccount,
+                finalAmount,
+                "Promena valute",
+                receiver.getFirstName() + " " + receiver.getLastName(),
+                rsd,
+                rsd
+        );
+
+        Transaction transactionToBank = createTransaction(
+                true,
+                fromAccount,
+                rsdBankAccount,
+                amount,
+                fromCurrency,
+                provision,
+                "Exchange transaction",
+                transferToBank
+        );
+
+        Transaction transactionFromBank = createTransaction(
+                true,
+                rsdBankAccount,
+                toAccount,
+                finalAmount,
+                rsd,
+                0.0,
+                "Exchange transaction",
+                transferFromBank
+        );
+
+        saveTransfersAndTransactions(
+                List.of(transferToBank, transferFromBank),
+                List.of(transactionToBank, transactionFromBank),
+                List.of(rsdBankAccount, foreignBankAccount)
+        );
+
+        return exchange;
+    }
+
+    /**
+     * Helper method to create a Transfer object.
+     */
+    private Transfer createTransfer(
+            Account fromAccount,
+            Account toAccount,
+            Double amount,
+            String description,
+            String receiver,
+            Currency fromCurrency,
+            Currency toCurrency
+    ) {
+        Transfer transfer = new Transfer();
+        transfer.setFromAccountId(fromAccount);
+        transfer.setToAccountId(toAccount);
+        transfer.setAmount(amount);
+        transfer.setStatus(TransferStatus.COMPLETED);
+        transfer.setType(TransferType.EXTERNAL);
+        transfer.setPaymentDescription(description);
+        transfer.setReceiver(receiver);
+        transfer.setFromCurrency(fromCurrency);
+        transfer.setToCurrency(toCurrency);
+        transfer.setCreatedAt(System.currentTimeMillis());
+        return transfer;
+    }
+
+    /**
+     * Helper method to create a Transaction object.
+     */
+    private Transaction createTransaction(
+            boolean bankOnly,
+            Account fromAccount,
+            Account toAccount,
+            Double amount,
+            Currency currency,
+            Double fee,
+            String description,
+            Transfer transfer
+    ) {
+        Transaction transaction = new Transaction();
+        transaction.setBankOnly(bankOnly);
+        transaction.setFromAccountId(fromAccount);
+        transaction.setToAccountId(toAccount);
+        transaction.setAmount(amount);
+        transaction.setCurrency(currency);
+        transaction.setFinalAmount(amount - fee);
+        transaction.setFee(fee);
+        transaction.setTimestamp(System.currentTimeMillis());
+        transaction.setDescription(description);
+        transaction.setTransfer(transfer);
+        return transaction;
+    }
+
+    /**
+     * Helper method to create a fee transaction on the bank's account.
+     */
+    private Transaction createFeeTransaction(
+            Account bankAccount,
+            Account customerFromAccount,
+            Double feeAmount,
+            Currency currency,
+            String description,
+            Transfer transfer
+    ) {
+        Transaction feeTransaction = new Transaction();
+        feeTransaction.setBankOnly(false);
+        feeTransaction.setFromAccountId(customerFromAccount); // No source account as this is just a fee
+        feeTransaction.setToAccountId(bankAccount);
+        feeTransaction.setAmount(feeAmount);
+        feeTransaction.setCurrency(currency);
+        feeTransaction.setFinalAmount(feeAmount);
+        feeTransaction.setFee(0.0);
+        feeTransaction.setTimestamp(System.currentTimeMillis());
+        feeTransaction.setDescription(description);
+        feeTransaction.setTransfer(transfer);
+        return feeTransaction;
+    }
+
+
+    /**
+     * Helper method to save multiple transfers, transactions, and accounts.
+     */
+    private void saveTransfersAndTransactions(
+            List<Transfer> transfers,
+            List<Transaction> transactions,
+            List<Account> accounts
+    ) {
+        transferRepository.saveAll(transfers);
+        transactionRepository.saveAll(transactions);
+        accountRepository.saveAll(accounts);
+    }
+
 
     @Transactional
     public String processInternalTransfer(Long transferId) {
@@ -191,11 +520,12 @@ public class TransferService {
 
         try{
             // Azuriranje balansa
-            fromAccount.setBalance(fromAccount.getBalance() - transfer.getAmount());
             Map<String, Object> exchangeMap = null;
 
-            if(transfer.getType().equals(TransferType.INTERNAL))
+            if(transfer.getType().equals(TransferType.INTERNAL)) {
+                fromAccount.setBalance(fromAccount.getBalance() - transfer.getAmount());
                 toAccount.setBalance(toAccount.getBalance() + transfer.getAmount());
+            }
             else {
                 exchangeMap = performCurrencyExchangeTransfer(transfer, fromAccount, toAccount);
             }
@@ -332,6 +662,10 @@ public class TransferService {
 
         Account fromAccount = fromAccountOtp.get();
         Account toAccount = toAccountOtp.get();
+
+        if(transferDTO.getAmount() <= 0){
+            return false;
+        }
 
         return !fromAccount.getOwnerID().equals(toAccount.getOwnerID());
     }

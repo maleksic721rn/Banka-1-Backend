@@ -6,9 +6,10 @@ import com.google.firebase.FirebaseOptions;
 import jakarta.annotation.PostConstruct;
 import org.springframework.context.annotation.Configuration;
 
-import java.io.FileInputStream;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Base64;
 
 @Configuration
 public class FirebaseConfig {
@@ -17,10 +18,18 @@ public class FirebaseConfig {
     public void init() {
         try {
             InputStream serviceAccount = FirebaseConfig.class.getClassLoader()
-                    .getResourceAsStream("firebase.json");
+                    .getResourceAsStream("firebase.txt");
+
+            // base64 decoding
+            if (serviceAccount == null) {
+                throw new IOException("Service account file not found");
+            }
+
+             byte[] decodedBytes = Base64.getDecoder().decode(serviceAccount.readAllBytes());
+            InputStream decodedInputStream = new ByteArrayInputStream(decodedBytes);
 
             FirebaseOptions options = FirebaseOptions.builder()
-                    .setCredentials(GoogleCredentials.fromStream(serviceAccount))
+                    .setCredentials(GoogleCredentials.fromStream(decodedInputStream))
                     .build();
 
             if (FirebaseApp.getApps().isEmpty()) {

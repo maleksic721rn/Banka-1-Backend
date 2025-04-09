@@ -1,6 +1,7 @@
 package com.banka1.banking.models.helper;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonValue;
 import lombok.Getter;
 
 import java.util.ArrayList;
@@ -89,6 +90,11 @@ public enum BusinessActivityCode {
         }
         System.out.println(codes);
         return codes;
+    }
+
+    @JsonValue
+    public String getCode() {
+        return code;
     }
 }
 

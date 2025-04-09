@@ -1,0 +1,1503 @@
+definitions:
+  controllers.UpdatePublicCountRequest:
+    properties:
+      public:
+        type: integer
+      security_id:
+        type: integer
+    type: object
+  dto.ActuaryDTO:
+    properties:
+      department:
+        enum:
+        - supervisor
+        - agent
+        type: string
+      limitAmount:
+        type: number
+      needApproval:
+        type: boolean
+      usedLimit:
+        type: number
+      userID:
+        type: integer
+    required:
+    - department
+    - userID
+    type: object
+  dto.FilteredActuaryDTO:
+    properties:
+      department:
+        type: string
+      email:
+        type: string
+      firstName:
+        type: string
+      id:
+        type: integer
+      lastName:
+        type: string
+      limitAmount:
+        type: number
+      needApproval:
+        type: boolean
+      position:
+        type: string
+      usedLimit:
+        type: number
+    type: object
+  dto.PortfolioSecurityDTO:
+    properties:
+      amount:
+        type: integer
+      last_modified:
+        type: integer
+      price:
+        type: number
+      profit:
+        type: number
+      public:
+        type: integer
+      symbol:
+        type: string
+      ticker:
+        type: string
+      type:
+        type: string
+    type: object
+  dto.UpdateActuaryDTO:
+    properties:
+      limit:
+        type: string
+      reset:
+        type: boolean
+    type: object
+  types.Actuary:
+    properties:
+      department:
+        type: string
+      email:
+        type: string
+      fullName:
+        type: string
+      id:
+        type: integer
+      limit:
+        description: Samo za agente
+        type: number
+      needApproval:
+        description: Da li orderi agenta trebaju supervizorsko odobrenje
+        type: boolean
+      usedLimit:
+        description: Samo za agente, resetuje se dnevno
+        type: number
+      userId:
+        type: integer
+    type: object
+  types.AggregatedTaxResponse:
+    properties:
+      is_actuary:
+        type: boolean
+      paid_this_year:
+        type: number
+      unpaid_this_month:
+        type: number
+      user_id:
+        type: integer
+    type: object
+  types.CreateOrderRequest:
+    properties:
+      account_id:
+        type: integer
+      aon:
+        type: boolean
+      contract_size:
+        type: integer
+      direction:
+        type: string
+      limit_price_per_unit:
+        type: number
+      margin:
+        type: boolean
+      quantity:
+        type: integer
+      security_id:
+        type: integer
+      stop_price_per_unit:
+        type: number
+      user_id:
+        type: integer
+    required:
+    - account_id
+    - aon
+    - contract_size
+    - direction
+    - margin
+    - quantity
+    - security_id
+    - user_id
+    type: object
+  types.Exchange:
+    properties:
+      acronym:
+        type: string
+      close_time:
+        type: string
+      country:
+        type: string
+      currency:
+        type: string
+      id:
+        type: integer
+      mic_code:
+        type: string
+      name:
+        type: string
+      open_time:
+        type: string
+      timezone:
+        type: string
+    type: object
+  types.ForexPair:
+    properties:
+      base_currency:
+        type: string
+      exchange_rate:
+        type: number
+      id:
+        type: integer
+      liquidity:
+        description: '"High", "Medium", "Low"'
+        type: string
+      listing:
+        $ref: '#/definitions/types.Listing'
+      listing_id:
+        type: integer
+      quote_currency:
+        type: string
+    type: object
+  types.FuturesContract:
+    properties:
+      contract_size:
+        type: integer
+      contract_unit:
+        description: '"Barrel", "Kilogram", "Liter"'
+        type: string
+      id:
+        type: integer
+      listing:
+        $ref: '#/definitions/types.Listing'
+      listing_id:
+        type: integer
+      settlement_date:
+        type: string
+    type: object
+  types.Listing:
+    properties:
+      Subtype:
+        description: '"ETF", "Common Stock", "Call Option", "Put Option"'
+        type: string
+      ask:
+        type: number
+      bid:
+        type: number
+      contract_size:
+        type: integer
+      created_at:
+        type: string
+      exchange:
+        $ref: '#/definitions/types.Exchange'
+      exchange_id:
+        type: integer
+      id:
+        type: integer
+      last_refresh:
+        type: string
+      lastPrice:
+        type: number
+      name:
+        type: string
+      ticker:
+        type: string
+      type:
+        description: '"Stock", "Forex", "Future", "Option"'
+        type: string
+      updated_at:
+        type: string
+    type: object
+  types.ListingDailyPriceInfo:
+    properties:
+      availableQuantity:
+        type: integer
+      change:
+        type: number
+      date:
+        type: string
+      high:
+        type: number
+      id:
+        type: integer
+      listing:
+        $ref: '#/definitions/types.Listing'
+      listing_id:
+        type: integer
+      low:
+        type: number
+      price:
+        type: number
+    type: object
+  types.Option:
+    properties:
+      contractSize:
+        type: integer
+      createdAt:
+        type: string
+      id:
+        type: integer
+      impliedVol:
+        type: number
+      listingID:
+        type: integer
+      openInterest:
+        type: integer
+      optionType:
+        description: '"Call" or "Put"'
+        type: string
+      settlementDate:
+        type: string
+      strikePrice:
+        type: number
+      updatedAt:
+        type: string
+    type: object
+  types.OrderResponse:
+    properties:
+      account_id:
+        type: integer
+      after_hours:
+        type: boolean
+      aon:
+        type: boolean
+      approved_by:
+        description: Supervizor koji je odobrio order
+        type: integer
+      contract_size:
+        type: integer
+      direction:
+        type: string
+      id:
+        type: integer
+      is_done:
+        type: boolean
+      last_modified:
+        type: integer
+      limit_price_per_unit:
+        type: number
+      margin:
+        type: boolean
+      quantity:
+        type: integer
+      remaining_parts:
+        type: integer
+      security_id:
+        type: integer
+      status:
+        type: string
+      stop_price_per_unit:
+        type: number
+      user_id:
+        type: integer
+    type: object
+  types.Response:
+    properties:
+      data: {}
+      error:
+        type: string
+      success:
+        type: boolean
+    type: object
+  types.Security:
+    properties:
+      ask:
+        type: number
+      availableQuantity:
+        type: integer
+      bid:
+        type: number
+      contractSize:
+        type: integer
+      exchange:
+        type: string
+      id:
+        type: integer
+      lastPrice:
+        type: number
+      name:
+        type: string
+      optionType:
+        type: string
+      previousClose:
+        type: number
+      settlementDate:
+        description: Samo za futures i opcije
+        type: string
+      strikePrice:
+        type: number
+      ticker:
+        type: string
+      type:
+        type: string
+      userId:
+        type: integer
+    type: object
+  types.Stock:
+    properties:
+      dividend_yield:
+        type: number
+      id:
+        type: integer
+      listing:
+        $ref: '#/definitions/types.Listing'
+      listing_id:
+        type: integer
+      outstanding_shares:
+        type: integer
+    type: object
+  types.TaxResponse:
+    properties:
+      is_actuary:
+        type: boolean
+      is_paid:
+        type: boolean
+      tax_amount:
+        type: number
+      taxable_profit:
+        type: number
+      user_id:
+        type: integer
+    type: object
+info:
+  contact: {}
+  description: Trading Service API
+  title: Trading Service
+  version: "1.0"
+paths:
+  /actuaries:
+    get:
+      description: Vraća listu svih zapisa aktuara iz baze podataka.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Uspešno dobavljeni svi aktuari
+          schema:
+            allOf:
+            - $ref: '#/definitions/types.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/types.Actuary'
+                  type: array
+              type: object
+        "500":
+          description: Greška u bazi
+          schema:
+            $ref: '#/definitions/types.Response'
+      summary: Dobavljanje svih aktuara
+      tags:
+      - Actuaries
+    post:
+      consumes:
+      - application/json
+      description: Kreira novi aktuar na osnovu dostavljenih podataka.
+      parameters:
+      - description: Podaci za kreiranje aktuara
+        in: body
+        name: actuary
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ActuaryDTO'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Uspešno kreiran aktuar
+          schema:
+            allOf:
+            - $ref: '#/definitions/types.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/types.Actuary'
+              type: object
+        "400":
+          description: Neispravan format unosa ili poslati podaci nisu validni.
+          schema:
+            $ref: '#/definitions/types.Response'
+        "500":
+          description: Greska u bazi.
+          schema:
+            $ref: '#/definitions/types.Response'
+      summary: Kreiranje novog aktuara
+      tags:
+      - Actuaries
+  /actuaries/{ID}:
+    get:
+      description: Vraća detalje jednog aktuara na osnovu njegovog ID-ja.
+      parameters:
+      - description: ID aktuara
+        in: path
+        name: ID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Uspešno dobavljen aktuar
+          schema:
+            allOf:
+            - $ref: '#/definitions/types.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/types.Actuary'
+              type: object
+        "404":
+          description: Aktuar nije pronadjen
+          schema:
+            $ref: '#/definitions/types.Response'
+        "500":
+          description: Greška u bazi
+          schema:
+            $ref: '#/definitions/types.Response'
+      summary: Dobavljanje aktuara po ID-ju
+      tags:
+      - Actuaries
+  /actuaries/{id}:
+    put:
+      consumes:
+      - application/json
+      description: Ažurira iznos limita za određeni aktuar prema ID-ju.
+      parameters:
+      - description: ID aktuara
+        in: path
+        name: ID
+        required: true
+        type: string
+      - description: Podaci za ažuriranje limita
+        in: body
+        name: updateData
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateActuaryDTO'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Uspešno ažurirani limiti aktuara
+          schema:
+            allOf:
+            - $ref: '#/definitions/types.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/types.Actuary'
+              type: object
+        "400":
+          description: Neispravan format podataka
+          schema:
+            $ref: '#/definitions/types.Response'
+        "404":
+          description: Aktuar nije pronadjen
+          schema:
+            $ref: '#/definitions/types.Response'
+      summary: Izmena limita aktuara
+      tags:
+      - Actuaries
+  /actuaries/filter:
+    get:
+      description: Vraća listu aktuara filtriranu po imenu, prezimenu, email-u i/ili
+        poziciji..
+      parameters:
+      - description: Filter po imenu (case-insensitive, partial match)
+        in: query
+        name: name
+        type: string
+      - description: Filter po prezimenu (case-insensitive, partial match)
+        in: query
+        name: surname
+        type: string
+      - description: Filter po email-u (case-insensitive, partial match)
+        in: query
+        name: email
+        type: string
+      - description: Filter po poziciji (exact match from user-service)
+        in: query
+        name: position
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Uspešno filtrirani aktuari
+          schema:
+            allOf:
+            - $ref: '#/definitions/types.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/dto.FilteredActuaryDTO'
+                  type: array
+              type: object
+        "500":
+          description: Greska pri preuzimanju aktuara.
+          schema:
+            $ref: '#/definitions/types.Response'
+      summary: Filtriranje aktuara
+      tags:
+      - Actuaries
+  /exchanges:
+    get:
+      description: Vraća listu svih berzi dostupnih u sistemu.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Lista svih berzi
+          schema:
+            allOf:
+            - $ref: '#/definitions/types.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/types.Exchange'
+                  type: array
+              type: object
+        "500":
+          description: Interna greška servera pri preuzimanju berzi
+          schema:
+            $ref: '#/definitions/types.Response'
+      summary: Preuzimanje svih berzi
+      tags:
+      - Exchanges
+  /exchanges/{id}:
+    get:
+      description: Vraća detalje specifične berze na osnovu njenog internog ID-ja.
+      parameters:
+      - description: ID berze
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Detalji tražene berze
+          schema:
+            allOf:
+            - $ref: '#/definitions/types.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/types.Exchange'
+              type: object
+        "404":
+          description: Berza sa datim ID-jem nije pronađena
+          schema:
+            $ref: '#/definitions/types.Response'
+      summary: Preuzimanje berze po ID-u
+      tags:
+      - Exchanges
+  /exchanges/acronym/{acronym}:
+    get:
+      description: 'Vraća detalje specifične berze na osnovu njenog akronima. Napomena:
+        Akronim ne mora biti jedinstven. Vraća prvu pronađenu.'
+      parameters:
+      - description: Akronim berze
+        example: NASDAQ
+        in: path
+        name: acronym
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Detalji pronađene berze
+          schema:
+            allOf:
+            - $ref: '#/definitions/types.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/types.Exchange'
+              type: object
+        "404":
+          description: Berza sa datim akronimom nije pronađena
+          schema:
+            $ref: '#/definitions/types.Response'
+      summary: Preuzimanje berze po akronimu
+      tags:
+      - Exchanges
+  /exchanges/mic/{micCode}:
+    get:
+      description: Vraća detalje specifične berze na osnovu njenog jedinstvenog MIC
+        koda.
+      parameters:
+      - description: Market Identifier Code (MIC) berze
+        example: XNAS
+        in: path
+        name: micCode
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Detalji tražene berze
+          schema:
+            allOf:
+            - $ref: '#/definitions/types.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/types.Exchange'
+              type: object
+        "404":
+          description: Berza sa datim MIC kodom nije pronađena
+          schema:
+            $ref: '#/definitions/types.Response'
+      summary: Preuzimanje berze po MIC kodu
+      tags:
+      - Exchanges
+  /forex:
+    get:
+      description: Vraća listu svih listinga koji predstavljaju forex valutne parove.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Lista svih forex parova
+          schema:
+            allOf:
+            - $ref: '#/definitions/types.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/types.Listing'
+                  type: array
+              type: object
+        "500":
+          description: Interna greška servera pri preuzimanju forex parova
+          schema:
+            $ref: '#/definitions/types.Response'
+      summary: Preuzimanje svih forex parova
+      tags:
+      - Forex
+  /forex/{base}/{quote}:
+    get:
+      description: Vraća osnovne podatke (Listing) i detalje (ForexPair) za forex
+        par specificiran osnovnom i kvotnom valutom.
+      parameters:
+      - description: Osnovna valuta (ISO kod)
+        example: EUR
+        in: path
+        name: base
+        required: true
+        type: string
+      - description: Kvotna valuta (ISO kod)
+        example: USD
+        in: path
+        name: quote
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Detalji forex para
+          schema:
+            allOf:
+            - $ref: '#/definitions/types.Response'
+            - properties:
+                data:
+                  properties:
+                    details:
+                      $ref: '#/definitions/types.ForexPair'
+                    listing:
+                      $ref: '#/definitions/types.Listing'
+                  type: object
+              type: object
+        "404":
+          description: Forex par nije pronađen
+          schema:
+            $ref: '#/definitions/types.Response'
+        "500":
+          description: Interna greška servera pri preuzimanju detalja forex para
+          schema:
+            $ref: '#/definitions/types.Response'
+      summary: Preuzimanje forex para po valutama
+      tags:
+      - Forex
+  /forex/{base}/{quote}/history:
+    get:
+      description: Preuzima dnevne istorijske podatke za forex par u vremenskom opsegu.
+      parameters:
+      - description: Osnovna valuta
+        example: EUR
+        in: path
+        name: base
+        required: true
+        type: string
+      - description: Kvotna valuta
+        example: USD
+        in: path
+        name: quote
+        required: true
+        type: string
+      - description: Početni datum (YYYY-MM-DD). Podrazumevano pre 30 dana.
+        example: "2023-09-27"
+        format: date
+        in: query
+        name: startDate
+        type: string
+      - description: Krajnji datum (YYYY-MM-DD). Podrazumevano današnji dan.
+        example: "2023-10-27"
+        format: date
+        in: query
+        name: endDate
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Lista istorijskih podataka
+          schema:
+            allOf:
+            - $ref: '#/definitions/types.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/types.ListingDailyPriceInfo'
+                  type: array
+              type: object
+        "400":
+          description: Neispravan format datuma
+          schema:
+            $ref: '#/definitions/types.Response'
+        "404":
+          description: Forex par nije pronađen
+          schema:
+            $ref: '#/definitions/types.Response'
+        "500":
+          description: Greška pri preuzimanju istorijskih podataka iz baze
+          schema:
+            $ref: '#/definitions/types.Response'
+      summary: Istorijski podaci za forex par u vremenskom opsegu
+      tags:
+      - Forex
+  /future:
+    get:
+      description: Vraća listu svih listinga koji predstavljaju future ugovore.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Lista svih future-a
+          schema:
+            allOf:
+            - $ref: '#/definitions/types.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/types.Listing'
+                  type: array
+              type: object
+        "500":
+          description: Interna greška servera pri preuzimanju future-a
+          schema:
+            $ref: '#/definitions/types.Response'
+      summary: Preuzimanje svih future-a
+      tags:
+      - Futures
+  /future/{ticker}:
+    get:
+      description: Vraća osnovne podatke (Listing) i detalje (FuturesContract) za
+        future specificiran tikerom.
+      parameters:
+      - description: Tiker (simbol) future-a
+        example: ESZ3
+        in: path
+        name: ticker
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Detalji future-a
+          schema:
+            allOf:
+            - $ref: '#/definitions/types.Response'
+            - properties:
+                data:
+                  properties:
+                    details:
+                      $ref: '#/definitions/types.FuturesContract'
+                    listing:
+                      $ref: '#/definitions/types.Listing'
+                  type: object
+              type: object
+        "404":
+          description: Future sa datim tikerom nije pronađen
+          schema:
+            $ref: '#/definitions/types.Response'
+        "500":
+          description: Interna greška servera pri preuzimanju detalja future-a
+          schema:
+            $ref: '#/definitions/types.Response'
+      summary: Preuzimanje future-a po tikeru
+      tags:
+      - Futures
+  /options/symbol/{symbol}:
+    get:
+      description: Vraća listu osnovnih podataka (Listing) i detalje (Option) za sve
+        opcije čiji tiker (simbol same opcije u `listings` tabeli) počinje specificiranim
+        prefiksom (npr. "AAPL25" za sve AAPL opcije koje ističu 2025). Koristi LIKE
+        pretragu.
+      parameters:
+      - description: Prefiks tikera (simbola) opcije
+        example: AAPL251219C
+        in: path
+        name: symbol
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Lista opcija za dati prefiks simbola
+          schema:
+            allOf:
+            - $ref: '#/definitions/types.Response'
+            - properties:
+                data:
+                  properties:
+                    details:
+                      items:
+                        $ref: '#/definitions/types.Option'
+                      type: array
+                    listing:
+                      items:
+                        $ref: '#/definitions/types.Listing'
+                      type: array
+                  type: object
+              type: object
+        "404":
+          description: Opcije čiji simbol počinje datim prefiksom nisu pronađene
+          schema:
+            $ref: '#/definitions/types.Response'
+        "500":
+          description: Interna greška servera pri preuzimanju detalja opcije
+          schema:
+            $ref: '#/definitions/types.Response'
+      summary: Preuzimanje opcija po prefiksu simbola opcije
+      tags:
+      - Options
+  /options/ticker/{ticker}:
+    get:
+      description: Vraća listu osnovnih podataka (Listing) i detalje (Option) za sve
+        opcije koje imaju specificirani tačan osnovni tiker (npr. AAPL).
+      parameters:
+      - description: Tačan osnovni tiker (simbol) instrumenta na koji se opcija odnosi
+        example: AAPL
+        in: path
+        name: ticker
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Lista opcija za dati tiker
+          schema:
+            allOf:
+            - $ref: '#/definitions/types.Response'
+            - properties:
+                data:
+                  properties:
+                    details:
+                      items:
+                        $ref: '#/definitions/types.Option'
+                      type: array
+                    listing:
+                      items:
+                        $ref: '#/definitions/types.Listing'
+                      type: array
+                  type: object
+              type: object
+        "404":
+          description: Opcije sa datim tikerom nisu pronađene
+          schema:
+            $ref: '#/definitions/types.Response'
+        "500":
+          description: Interna greška servera pri preuzimanju detalja opcije
+          schema:
+            $ref: '#/definitions/types.Response'
+      summary: Preuzimanje opcija po tačnom osnovnom tikeru
+      tags:
+      - Options
+  /orders:
+    get:
+      description: Vraća listu naloga, opciono filtriranu po statusu.
+      parameters:
+      - default: all
+        description: Status naloga za filtriranje. Podrazumevano 'all' za sve statuse.
+        example: pending
+        in: query
+        name: filter_status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Uspešno preuzeta lista naloga
+          schema:
+            allOf:
+            - $ref: '#/definitions/types.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/types.OrderResponse'
+                  type: array
+              type: object
+        "500":
+          description: Greška pri preuzimanju naloga iz baze
+          schema:
+            $ref: '#/definitions/types.Response'
+      summary: Preuzimanje liste naloga
+      tags:
+      - Orders
+    post:
+      consumes:
+      - application/json
+      description: Kreira novi nalog za hartije od vrednosti.
+      parameters:
+      - description: Podaci neophodni za kreiranje naloga
+        in: body
+        name: orderRequest
+        required: true
+        schema:
+          $ref: '#/definitions/types.CreateOrderRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Uspešno kreiran nalog, vraća ID novog naloga
+          schema:
+            allOf:
+            - $ref: '#/definitions/types.Response'
+            - properties:
+                data:
+                  type: integer
+              type: object
+        "400":
+          description: Neispravan format, neuspela validacija ili greška pri upisu
+            u bazu
+          schema:
+            $ref: '#/definitions/types.Response'
+        "403":
+          description: Nije dozvoljeno kreirati nalog za drugog korisnika
+          schema:
+            $ref: '#/definitions/types.Response'
+      security:
+      - BearerAuth: []
+      summary: Kreiranje novog naloga
+      tags:
+      - Orders
+  /orders/{id}:
+    get:
+      description: Vraća detalje specifičnog naloga na osnovu njegovog jedinstvenog
+        identifikatora (ID).
+      parameters:
+      - description: ID naloga koji se preuzima
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Uspešno preuzet nalog
+          schema:
+            allOf:
+            - $ref: '#/definitions/types.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/types.OrderResponse'
+              type: object
+        "400":
+          description: Nevalidan ID naloga
+          schema:
+            $ref: '#/definitions/types.Response'
+        "404":
+          description: Nalog sa datim ID-jem ne postoji
+          schema:
+            $ref: '#/definitions/types.Response'
+      summary: Preuzimanje naloga po ID-u
+      tags:
+      - Orders
+  /orders/{id}/approve:
+    post:
+      description: Menja status naloga u 'approved'.
+      parameters:
+      - description: ID naloga koji se odobrava
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Nalog uspešno odobren
+          schema:
+            allOf:
+            - $ref: '#/definitions/types.Response'
+            - properties:
+                data:
+                  type: integer
+              type: object
+        "400":
+          description: Nevalidan ID ili nalog nije u 'pending' statusu
+          schema:
+            $ref: '#/definitions/types.Response'
+        "403":
+          description: Nedovoljne privilegije
+          schema:
+            $ref: '#/definitions/types.Response'
+        "404":
+          description: Nalog sa datim ID-jem ne postoji
+          schema:
+            $ref: '#/definitions/types.Response'
+        "500":
+          description: Interna Greška Servera
+          schema:
+            $ref: '#/definitions/types.Response'
+      security:
+      - BearerAuth: []
+      summary: Odobravanje naloga
+      tags:
+      - Orders
+  /orders/{id}/decline:
+    post:
+      description: Menja status naloga u 'declined'.
+      parameters:
+      - description: ID naloga koji se odbija
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Nalog uspešno odbijen, vraća ID naloga
+          schema:
+            allOf:
+            - $ref: '#/definitions/types.Response'
+            - properties:
+                data:
+                  type: integer
+              type: object
+        "400":
+          description: Nevalidan ID ili nalog nije u 'pending' statusu
+          schema:
+            $ref: '#/definitions/types.Response'
+        "403":
+          description: Nedovoljne privilegije
+          schema:
+            $ref: '#/definitions/types.Response'
+        "404":
+          description: Nalog sa datim ID-jem ne postoji
+          schema:
+            $ref: '#/definitions/types.Response'
+        "500":
+          description: Interna Greška Servera
+          schema:
+            $ref: '#/definitions/types.Response'
+      security:
+      - BearerAuth: []
+      summary: Odbijanje naloga
+      tags:
+      - Orders
+  /securities:
+    get:
+      description: Vraća listu svih dostupnih hartija od vrednosti.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Lista svih hartija od vrednosti
+          schema:
+            allOf:
+            - $ref: '#/definitions/types.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/types.Security'
+                  type: array
+              type: object
+        "500":
+          description: Interna greška servera pri preuzimanju ili konverziji hartija
+            od vrednosti
+          schema:
+            $ref: '#/definitions/types.Response'
+      summary: Preuzimanje svih hartija od vrednosti (Alias)
+      tags:
+      - Securities
+  /securities/{id}:
+    get:
+      description: Vraća listu svih hartija od vrednosti koje poseduje korisnik sa
+        specificiranim ID-jem, zajedno sa količinom, kupovnom cenom i trenutnim profitom/gubitkom
+        za svaku.
+      parameters:
+      - description: ID korisnika čije hartije od vrednosti treba dohvatiti
+        example: "123"
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Lista hartija od vrednosti u vlasništvu korisnika
+          schema:
+            allOf:
+            - $ref: '#/definitions/types.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/dto.PortfolioSecurityDTO'
+                  type: array
+              type: object
+        "400":
+          description: ID korisnika nije prosleđen u putanji
+          schema:
+            $ref: '#/definitions/types.Response'
+        "500":
+          description: Greška pri dohvatanju podataka iz baze
+          schema:
+            $ref: '#/definitions/types.Response'
+      summary: Dohvatanje svih hartija od vrednosti za korisnika
+      tags:
+      - Securities
+  /securities/{id}/public-count:
+    put:
+      consumes:
+      - application/json
+      description: Menja broj hartija koje su označene kao javne u portfoliju korisnika.
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Podaci za ažuriranje
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.UpdatePublicCountRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Uspešna izmena
+          schema:
+            allOf:
+            - $ref: '#/definitions/types.Response'
+            - properties:
+                data:
+                  type: string
+              type: object
+        "400":
+          description: Nedostaje user ID ili telo nije ispravno
+          schema:
+            $ref: '#/definitions/types.Response'
+        "500":
+          description: Greška pri ažuriranju
+          schema:
+            $ref: '#/definitions/types.Response'
+      summary: Ažuriranje broja javno oglašenih hartija
+      tags:
+      - Portfolio
+  /stocks:
+    get:
+      description: Vraća listu svih listinga koji predstavljaju akcije.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Lista svih akcija
+          schema:
+            allOf:
+            - $ref: '#/definitions/types.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/types.Listing'
+                  type: array
+              type: object
+        "500":
+          description: Interna greška servera pri preuzimanju akcija
+          schema:
+            $ref: '#/definitions/types.Response'
+      summary: Preuzimanje svih akcija
+      tags:
+      - Stocks
+  /stocks/{ticker}:
+    get:
+      description: Vraća osnovne podatke (Listing) i detalje (Stock) za akciju specificiranu
+        tikerom.
+      parameters:
+      - description: Tiker (simbol) akcije
+        example: AAPL
+        in: path
+        name: ticker
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Detalji akcije
+          schema:
+            allOf:
+            - $ref: '#/definitions/types.Response'
+            - properties:
+                data:
+                  properties:
+                    details:
+                      $ref: '#/definitions/types.Stock'
+                    listing:
+                      $ref: '#/definitions/types.Listing'
+                  type: object
+              type: object
+        "404":
+          description: Akcija sa datim tikerom nije pronađena
+          schema:
+            $ref: '#/definitions/types.Response'
+        "500":
+          description: Interna greška servera pri preuzimanju detalja akcije
+          schema:
+            $ref: '#/definitions/types.Response'
+      summary: Preuzimanje akcije po tikeru
+      tags:
+      - Stocks
+  /stocks/{ticker}/history:
+    get:
+      description: Preuzima dnevne istorijske podatke za akciju u vremenskom opsegu.
+      parameters:
+      - description: Tiker (simbol) akcije
+        example: AAPL
+        in: path
+        name: ticker
+        required: true
+        type: string
+      - description: Početni datum (YYYY-MM-DD). Podrazumevano pre 30 dana.
+        example: "2023-09-27"
+        format: date
+        in: query
+        name: startDate
+        type: string
+      - description: Krajnji datum (YYYY-MM-DD). Podrazumevano današnji dan.
+        example: "2023-10-27"
+        format: date
+        in: query
+        name: endDate
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Lista istorijskih podataka
+          schema:
+            allOf:
+            - $ref: '#/definitions/types.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/types.ListingDailyPriceInfo'
+                  type: array
+              type: object
+        "400":
+          description: Neispravan format datuma
+          schema:
+            $ref: '#/definitions/types.Response'
+        "404":
+          description: Akcija sa datim tikerom nije pronađena
+          schema:
+            $ref: '#/definitions/types.Response'
+        "500":
+          description: Greška pri preuzimanju istorijskih podataka iz baze
+          schema:
+            $ref: '#/definitions/types.Response'
+      summary: Istorijski podaci za akciju u vremenskom opsegu
+      tags:
+      - Stocks
+  /stocks/{ticker}/history/{date}:
+    get:
+      description: Preuzima dnevni istorijski podatak za akciju za određeni datum.
+      parameters:
+      - description: Tiker (simbol) akcije
+        example: AAPL
+        in: path
+        name: ticker
+        required: true
+        type: string
+      - description: Datum u formatu YYYY-MM-DD
+        example: "2023-10-26"
+        format: date
+        in: path
+        name: date
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Istorijski podatak za dati datum
+          schema:
+            $ref: '#/definitions/types.Response'
+        "400":
+          description: Neispravan format datuma
+          schema:
+            $ref: '#/definitions/types.Response'
+        "404":
+          description: Akcija sa datim tikerom nije pronađena
+          schema:
+            $ref: '#/definitions/types.Response'
+        "500":
+          description: Greška pri preuzimanju istorijskih podataka
+          schema:
+            $ref: '#/definitions/types.Response'
+      summary: Istorijski podatak za akciju za određeni datum
+      tags:
+      - Stocks
+  /stocks/{ticker}/history/first:
+    get:
+      description: Preuzima najstariji dostupan dnevni istorijski podatak za akciju.
+      parameters:
+      - description: Tiker (simbol) akcije
+        example: AAPL
+        in: path
+        name: ticker
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Najstariji istorijski podatak
+          schema:
+            $ref: '#/definitions/types.Response'
+        "404":
+          description: Akcija sa datim tikerom nije pronađena
+          schema:
+            $ref: '#/definitions/types.Response'
+        "500":
+          description: Greška pri preuzimanju istorijskih podataka
+          schema:
+            $ref: '#/definitions/types.Response'
+      summary: Prvi istorijski podatak za akciju
+      tags:
+      - Stocks
+  /tax:
+    get:
+      description: Vraća listu najskorijih neplaćenih poreskih obaveza (za poslednji
+        obračunati mesec/godinu) za sve korisnike. Za svakog korisnika proverava i
+        da li je registrovan kao aktuar.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Lista poslednjih neplaćenih poreskih obaveza
+          schema:
+            allOf:
+            - $ref: '#/definitions/types.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/types.TaxResponse'
+                  type: array
+              type: object
+        "400":
+          description: Greška pri izvršavanju upita u bazi (kako je implementirano
+            u kodu)
+          schema:
+            $ref: '#/definitions/types.Response'
+        "500":
+          description: Greška pri čitanju rezultata iz baze
+          schema:
+            $ref: '#/definitions/types.Response'
+      summary: Dohvatanje poslednjeg neplaćenog poreza za sve korisnike
+      tags:
+      - Tax
+  /tax/dashboard/{userID}:
+    get:
+      description: Vraća sumu plaćenog poreza za tekuću godinu i sumu neplaćenog poreza
+        za tekući mesec za specificiranog korisnika.
+      parameters:
+      - description: ID korisnika čiji se podaci traže
+        example: 123
+        in: path
+        name: userID
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Agregirani poreski podaci za korisnika
+          schema:
+            allOf:
+            - $ref: '#/definitions/types.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/types.AggregatedTaxResponse'
+              type: object
+        "400":
+          description: Neispravan ID korisnika (nije validan broj ili <= 0)
+          schema:
+            $ref: '#/definitions/types.Response'
+        "500":
+          description: Interna greška servera pri dohvatanju podataka iz baze
+          schema:
+            $ref: '#/definitions/types.Response'
+      summary: Dohvatanje agregiranih poreskih podataka za korisnika
+      tags:
+      - Tax
+  /tax/run:
+    post:
+      description: Endpoint namenjen za pokretanje procesa obračuna poreza za korisnike.
+        Trenutno nije implementiran i uvek vraća grešku 500.
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Zahtev za obračun poreza je primljen
+          schema:
+            $ref: '#/definitions/types.Response'
+        "500":
+          description: Greska
+          schema:
+            $ref: '#/definitions/types.Response'
+      summary: Pokretanje obračuna poreza
+      tags:
+      - Tax
+securityDefinitions:
+  BearerAuth:
+    description: 'Unesite token. Primer: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."'
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

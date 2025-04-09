@@ -2,7 +2,7 @@ package dto
 
 type ActuaryDTO struct {
 	UserID       uint    `json:"userID" validate:"required"`
-	Role         string  `json:"role" validate:"required,oneof=supervisor agent"`
+	Department   string  `json:"department" validate:"required,oneof=supervisor agent"`
 	LimitAmount  float64 `json:"limitAmount,omitempty"`
 	UsedLimit    float64 `json:"usedLimit,omitempty"`
 	NeedApproval bool    `json:"needApproval"`
@@ -13,10 +13,16 @@ type FilteredActuaryDTO struct {
 	FirstName    string  `json:"firstName"`
 	LastName     string  `json:"lastName"`
 	Email        string  `json:"email"`
-	Role         string  `json:"role"`
 	LimitAmount  float64 `json:"limitAmount"`
 	UsedLimit    float64 `json:"usedLimit"`
 	NeedApproval bool    `json:"needApproval"`
+	Position     string  `json:"position"`
+	Department   string  `json:"department"`
+}
+
+type FilteredActuaryResponse struct {
+	Data    []FilteredActuaryDTO `json:"data"`
+	Success bool                 `json:"success"`
 }
 
 type EmployeeResponse struct {

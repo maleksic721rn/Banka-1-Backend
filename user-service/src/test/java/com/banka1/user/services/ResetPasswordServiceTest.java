@@ -1,9 +1,8 @@
 package com.banka1.user.services;
 
-import com.banka1.user.DTO.request.NotificationRequest;
+import com.banka1.common.listener.MessageHelper;
 import com.banka1.user.DTO.request.ResetPasswordConfirmationRequest;
 import com.banka1.user.DTO.request.ResetPasswordRequest;
-import com.banka1.user.listener.MessageHelper;
 import com.banka1.user.model.Customer;
 import com.banka1.user.model.Employee;
 import com.banka1.user.model.ResetPassword;
@@ -27,7 +26,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class ResetPasswordServiceTest {

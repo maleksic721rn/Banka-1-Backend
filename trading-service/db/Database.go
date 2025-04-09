@@ -8,6 +8,7 @@ import (
 
 	"banka1.com/types"
 	"github.com/glebarez/sqlite"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 	"gorm.io/gorm/schema"
@@ -53,7 +54,7 @@ func Init() {
 func getDSN() string {
 	dbType := os.Getenv("DB_TYPE") // postgres, mysql, sqlite
 	switch dbType {
-	case "postgres":
+	case "POSTGRES_DSN":
 		return os.Getenv("POSTGRES_DSN")
 	case "mysql":
 		return os.Getenv("MYSQL_DSN")
@@ -66,8 +67,8 @@ func getDSN() string {
 func getDBDialect(dsn string) gorm.Dialector {
 	dbType := os.Getenv("DB_TYPE") // postgres, mysql, sqlite
 	switch dbType {
-	// case "postgres":
-	// 	return postgres.Open(dsn)
+	case "POSTGRES_DSN":
+		return postgres.Open(dsn)
 	// case "mysql":
 	// 	return mysql.Open(dsn)
 	default:
@@ -90,6 +91,8 @@ func migrate(db *gorm.DB) {
 		&types.ForexPair{},
 		&types.FuturesContract{},
 		&types.Option{},
+		&types.OptionContract{},
+		&types.ListingHistory{},
 	)
 }
 
@@ -99,5 +102,5 @@ func InitTestDatabase() error {
 	if err != nil {
 		return err
 	}
-	return DB.AutoMigrate(&types.Security{}, &types.Order{}, &types.Actuary{}, &types.Transaction{}, &types.Portfolio{})
+	return DB.AutoMigrate(&types.Security{}, &types.Order{}, &types.Actuary{}, &types.Transaction{}, &types.Portfolio{}, &types.OTCTrade{}, types.OptionContract{})
 }

@@ -1,11 +1,11 @@
 package com.banka1.banking.controllers;
 
 import com.banka1.banking.aspect.AccountAuthorization;
+import com.banka1.banking.dto.TransactionResponseDTO;
 import com.banka1.banking.dto.request.CreateAccountDTO;
 import com.banka1.banking.dto.request.UpdateAccountDTO;
 import com.banka1.banking.dto.request.UserUpdateAccountDTO;
 import com.banka1.banking.models.Account;
-import com.banka1.banking.models.Transaction;
 import com.banka1.banking.services.AccountService;
 import com.banka1.banking.services.implementation.AuthService;
 import com.banka1.banking.utils.ResponseTemplate;
@@ -367,7 +367,9 @@ public class AccountController {
                        {
                          "id": 1,
                          "fromAccountId": 1,
+                         "senderName": "Marko Markovic",
                          "toAccountId": 2,
+                         "receiverName": "Jovan Jovanovic",
                          "amount": 1000,
                          "currencyType": "RSD",
                          "transactionType": "TRANSFER",
@@ -396,7 +398,7 @@ public class AccountController {
             return ResponseTemplate.create(ResponseEntity.status(HttpStatus.NOT_FOUND), false, null, "Račun sa ID-jem " + accountId + " nije pronađen.");
         }
 
-        List<Transaction> transactions = accountService.getTransactionsForAccount(accountId);
+        List<TransactionResponseDTO> transactions = accountService.getTransactionsForAccount(accountId);
         Map<String, Object> response = new HashMap<>();
         response.put("transactions", transactions);
         return ResponseTemplate.create(ResponseEntity.status(HttpStatus.OK), true, response, null);

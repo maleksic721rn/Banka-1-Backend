@@ -1,15 +1,15 @@
 package com.banka1.user.service;
 
 
-import com.banka1.user.DTO.banking.CreateAccountByEmployeeDTO;
+import com.banka1.common.listener.MessageHelper;
 import com.banka1.common.model.Permission;
+import com.banka1.user.DTO.banking.CreateAccountByEmployeeDTO;
 import com.banka1.user.DTO.banking.CreateAccountDTO;
 import com.banka1.user.DTO.request.CreateCustomerRequest;
 import com.banka1.user.DTO.request.NotificationRequest;
 import com.banka1.user.DTO.request.UpdateCustomerRequest;
 import com.banka1.user.DTO.response.CustomerPageResponse;
 import com.banka1.user.DTO.response.CustomerResponse;
-import com.banka1.user.listener.MessageHelper;
 import com.banka1.user.mapper.CustomerMapper;
 import com.banka1.user.model.Customer;
 import com.banka1.user.model.helper.Gender;
@@ -23,6 +23,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.jms.core.JmsTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
+
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -114,6 +115,7 @@ public class CustomerService {
      * @return The created customer entity.
      */
     public Customer createCustomer(CreateCustomerRequest customerDTO, Long employeeId) {
+        System.out.println("------------------");
         Customer customer = CustomerMapper.dtoToCustomer(customerDTO);
 
         String verificationCode = UUID.randomUUID().toString();
@@ -130,11 +132,25 @@ public class CustomerService {
 
 
         // Saving the customer in the database gives it an ID, which can be used to generate the set-password token
-        customer = customerRepository.save(customer);
 
-        jmsTemplate.convertAndSend(destinationAccount, messageHelper.createTextMessage(new CreateAccountByEmployeeDTO(new CreateAccountDTO(customerDTO.getAccountInfo(), customer.getId()), employeeId)));
 
-        setPasswordService.saveSetPasswordRequest(verificationCode, customer.getId(), true);
+        try {
+
+            customer = customerRepository.save(customer);
+
+            setPasswordService.saveSetPasswordRequest(verificationCode, customer.getId(), true);
+
+            var dto = new CreateAccountByEmployeeDTO(new CreateAccountDTO(customerDTO.getAccountInfo(), customer.getId()), employeeId);
+            var message = jmsTemplate.sendAndReceive(destinationAccount, session -> session.createTextMessage(messageHelper.createTextMessage(dto)));
+
+            var error = messageHelper.getMessage(message, String.class);
+            if (error != null && !error.equals("null"))
+                throw new RuntimeException(error);
+        } catch (Exception e) {
+            log.error("Error while creating account: ", e);
+            customerRepository.delete(customer);
+            throw new RuntimeException(e);
+        }
 
         jmsTemplate.convertAndSend(destinationEmail, messageHelper.createTextMessage(emailDTO));
         return customer;

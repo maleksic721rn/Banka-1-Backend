@@ -2,7 +2,6 @@ package com.banka1.banking.service.accountService;
 
 import com.banka1.banking.dto.CustomerDTO;
 import com.banka1.banking.dto.request.CreateAccountDTO;
-import com.banka1.banking.listener.MessageHelper;
 import com.banka1.banking.models.Account;
 import com.banka1.banking.models.Card;
 import com.banka1.banking.models.helper.AccountStatus;
@@ -13,7 +12,7 @@ import com.banka1.banking.repository.AccountRepository;
 import com.banka1.banking.services.AccountService;
 import com.banka1.banking.services.CardService;
 import com.banka1.banking.services.UserServiceCustomer;
-import jakarta.jms.Destination;
+import com.banka1.common.listener.MessageHelper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
