@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"log"
 	"time"
 
 	"banka1.com/db"
@@ -98,18 +99,34 @@ func GetAggregatedTaxForUser(c *fiber.Ctx) error {
 	yearMonth := time.Now().Format("2006-01")
 
 	var paid float64
-	db.DB.Raw(`
+	err = db.DB.Raw(`
 		SELECT COALESCE(SUM(tax_amount), 0)
 		FROM tax
-		WHERE is_paid = 1 AND user_id = ? AND substr(created_at, 1, 4) = ?
-	`, userID, year).Scan(&paid)
+		WHERE is_paid = 1 AND user_id = ? AND substr(month_year, 1, 4) = ?
+	`, userID, year).Scan(&paid).Error
+
+	if err != nil {
+		log.Printf("Greška pri dohvatanju plaćenog poreza za user-a %d: %v", userID, err)
+		return c.Status(500).JSON(types.Response{
+			Success: false,
+			Error:   "Greška pri čitanju podataka iz baze",
+		})
+	}
 
 	var unpaid float64
-	db.DB.Raw(`
+	err = db.DB.Raw(`
 		SELECT COALESCE(SUM(tax_amount), 0)
 		FROM tax
-		WHERE is_paid = 0 AND user_id = ? AND substr(created_at, 1, 7) = ?
-	`, userID, yearMonth).Scan(&unpaid)
+		WHERE is_paid = 0 AND user_id = ? AND month_year = ?
+	`, userID, yearMonth).Scan(&unpaid).Error
+
+	if err != nil {
+		log.Printf("Greška pri dohvatanju neplaćenog poreza za user-a %d: %v", userID, err)
+		return c.Status(500).JSON(types.Response{
+			Success: false,
+			Error:   "Greška pri čitanju podataka iz baze",
+		})
+	}
 
 	var isActuary bool
 	db.DB.Raw(`
