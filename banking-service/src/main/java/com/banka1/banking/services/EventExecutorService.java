@@ -1,9 +1,14 @@
 package com.banka1.banking.services;
 
 import com.banka1.banking.dto.CreateEventDeliveryDTO;
+import com.banka1.banking.dto.interbank.InterbankMessageDTO;
+import com.banka1.banking.dto.interbank.committx.CommitTransactionDTO;
+import com.banka1.banking.dto.interbank.newtx.InterbankTransactionDTO;
+import com.banka1.banking.dto.interbank.rollbacktx.RollbackTransactionDTO;
 import com.banka1.banking.models.Event;
 import com.banka1.banking.models.EventDelivery;
 import com.banka1.banking.models.helper.DeliveryStatus;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Lazy;
@@ -62,7 +67,41 @@ public class EventExecutorService {
         headers.set("Content-Type", "application/json");
         headers.set("X-Api-Key", ":DDDDDDDDDDDDDDDD");
 
-        HttpEntity<String> entity = new HttpEntity<>(event.getPayload(), headers);
+        ObjectMapper mapper = new ObjectMapper();
+
+        InterbankMessageDTO message = new InterbankMessageDTO();
+        message.setMessageType(event.getMessageType());
+        message.setIdempotenceKey(event.getIdempotenceKey());
+        String messageJson;
+
+        System.out.println(1);
+        try {
+            switch (event.getMessageType()) {
+                case ROLLBACK_TX -> {
+                    System.out.println(event.getPayload());
+                    RollbackTransactionDTO messageBody = mapper.readValue(event.getPayload(), RollbackTransactionDTO.class);
+                    message.setMessage(messageBody);
+                }
+                case COMMIT_TX -> {
+                    CommitTransactionDTO messageBody = mapper.readValue(event.getPayload(), CommitTransactionDTO.class);
+                    message.setMessage(messageBody);
+                }
+                case NEW_TX -> {
+                    InterbankTransactionDTO messageBody = mapper.readValue(event.getPayload(), InterbankTransactionDTO.class);
+                    message.setMessage(messageBody);
+                }
+            }
+            System.out.println(5);
+
+            messageJson = mapper.writeValueAsString(message);
+        } catch (JsonProcessingException e) {
+            eventService.changeEventStatus(event, DeliveryStatus.FAILED);
+            return;
+        }
+
+        HttpEntity<String> entity = new HttpEntity<>(messageJson, headers);
+
+        // add body to request
 
         String responseBody = null;
         int httpStatus = 0;
@@ -78,7 +117,6 @@ public class EventExecutorService {
             status = response.getStatusCode().is2xxSuccessful() ? DeliveryStatus.SUCCESS : DeliveryStatus.FAILED;
 
         } catch (Exception ex) {
-            System.out.println("Error during event delivery: " + ex.getMessage());
             System.out.println(ex.getStackTrace());
             status = DeliveryStatus.FAILED;
             httpStatus = -1;
@@ -102,9 +140,6 @@ public class EventExecutorService {
         createEventDeliveryDTO.setHttpStatus(httpStatus);
         createEventDeliveryDTO.setResponseBody(responseBody);
         createEventDeliveryDTO.setStatus(status);
-
-        System.out.println("Response body: " + responseBody);
-        System.out.println("Response status code: " + httpStatus);
 
         EventDelivery eventDelivery = eventService.createEventDelivery(createEventDeliveryDTO);
     }

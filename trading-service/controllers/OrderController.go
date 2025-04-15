@@ -199,24 +199,7 @@ func (oc *OrderController) CreateOrder(c *fiber.Ctx) error {
 
 	// Provera dostupnosti unita ako se order odobrava odmah
 	if status == "approved" {
-		var security types.Security
-		if err := db.DB.First(&security, orderRequest.SecurityID).Error; err != nil {
-			return c.Status(404).JSON(types.Response{
-				Success: false,
-				Error:   "Hartija nije pronađena",
-			})
-		}
-
-		if strings.ToLower(orderRequest.Direction) == "buy" {
-			if orderRequest.AON {
-				if orderRequest.Quantity > int(security.Volume) {
-					return c.Status(400).JSON(types.Response{
-						Success: false,
-						Error:   fmt.Sprintf("Nedovoljno dostupnih unita (%d dostupno)", security.Volume),
-					})
-				}
-			}
-		} else if strings.ToLower(orderRequest.Direction) == "sell" {
+		if strings.ToLower(orderRequest.Direction) == "sell" {
 			var portfolio types.Portfolio
 			if err := db.DB.Where("user_id = ? AND security_id = ?", orderRequest.UserID, orderRequest.SecurityID).First(&portfolio).Error; err != nil {
 				return c.Status(400).JSON(types.Response{
@@ -224,7 +207,7 @@ func (oc *OrderController) CreateOrder(c *fiber.Ctx) error {
 					Error:   "Nemate ovu hartiju u portfoliju",
 				})
 			}
-			if orderRequest.AON && portfolio.Quantity < orderRequest.Quantity {
+			if portfolio.Quantity < orderRequest.Quantity {
 				return c.Status(400).JSON(types.Response{
 					Success: false,
 					Error:   fmt.Sprintf("Nemate dovoljno hartija za AON prodaju (imate %d, traženo %d)", portfolio.Quantity, orderRequest.Quantity),
@@ -271,6 +254,10 @@ func (oc *OrderController) CreateOrder(c *fiber.Ctx) error {
 			Success: false,
 			Error:   "Neuspelo kreiranje: " + err.Error(),
 		})
+	}
+
+	if strings.ToLower(order.Direction) == "sell" && order.Status == "approved" {
+		_ = orders.UpdateAvailableVolume(order.SecurityID)
 	}
 
 	if orderRequest.Margin {
@@ -370,7 +357,7 @@ func ApproveDeclineOrder(c *fiber.Ctx, decline bool) error {
 	if decline {
 		order.Status = "declined"
 	} else {
-		// Provera dostupnosti unita pre odobrenja
+		// Proveri da li je hartiji istekao settlementDate
 		var security types.Security
 		if err := db.DB.First(&security, order.SecurityID).Error; err != nil {
 			return c.Status(404).JSON(types.Response{
@@ -378,16 +365,27 @@ func ApproveDeclineOrder(c *fiber.Ctx, decline bool) error {
 				Error:   "Hartija nije pronađena",
 			})
 		}
-
-		if strings.ToLower(order.Direction) == "buy" {
-			// Provera da li ima dostupnih unita za kupovinu
-			if order.Quantity > int(security.Volume) {
+		if security.SettlementDate != nil {
+			parsed, err := time.Parse("2006-01-02", *security.SettlementDate)
+			if err != nil {
 				return c.Status(400).JSON(types.Response{
 					Success: false,
-					Error:   fmt.Sprintf("Nedovoljno dostupnih unita (%d dostupno)", security.Volume),
+					Error:   "Nevažeći settlement date format",
 				})
 			}
-		} else if strings.ToLower(order.Direction) == "sell" {
+
+			now := time.Now().Truncate(24 * time.Hour)
+			parsed = parsed.Truncate(24 * time.Hour)
+
+			if parsed.Before(now) {
+				return c.Status(400).JSON(types.Response{
+					Success: false,
+					Error:   "Nije moguće odobriti order za hartiju kojoj je istekao settlement date",
+				})
+			}
+		}
+
+		if strings.ToLower(order.Direction) == "sell" {
 			// Provera da li korisnik ima dovoljno hartija u portfoliju
 			var portfolio types.Portfolio
 			if err := db.DB.Where("user_id = ? AND security_id = ?", order.UserID, order.SecurityID).First(&portfolio).Error; err != nil {
@@ -414,6 +412,10 @@ func ApproveDeclineOrder(c *fiber.Ctx, decline bool) error {
 		}
 		order.LastModified = time.Now().Unix()
 		db.DB.Save(&order)
+
+		if strings.ToLower(order.Direction) == "sell" {
+			_ = orders.UpdateAvailableVolume(order.SecurityID)
+		}
 
 		orders.MatchOrder(order)
 
@@ -520,7 +522,7 @@ func (oc *OrderController) CancelOrder(c *fiber.Ctx) error {
 //	@Tags			Orders
 //	@Produce		json
 //	@Param			id	path	int	true	"ID korisnika za kog se računa profit"
-//	@Success		200	{object}	types.Response{data=types.RealizedProfitResponse}	"Uspešno vraćen obračun profita"
+//	@Success		200	{object}	types.Response{data=dto.RealizedProfitResponse}	"Uspešno vraćen obračun profita"
 //	@Failure		400	{object}	types.Response										"Nevalidan ID korisnika"
 //	@Failure		404	{object}	types.Response										"Korisnik nema transakcija, nije moguće izračunati profit"
 //	@Failure		500	{object}	types.Response										"Greška prilikom obračuna profita"

@@ -2,10 +2,12 @@ package com.banka1.banking.services;
 
 import com.banka1.banking.dto.CreateEventDTO;
 import com.banka1.banking.dto.CreateEventDeliveryDTO;
+import com.banka1.banking.dto.interbank.InterbankMessageDTO;
 import com.banka1.banking.models.Event;
 import com.banka1.banking.models.EventDelivery;
 import com.banka1.banking.models.helper.DeliveryStatus;
 import com.banka1.banking.models.helper.IdempotenceKey;
+import com.banka1.banking.models.interbank.EventDirection;
 import com.banka1.banking.repository.EventDeliveryRepository;
 import com.banka1.banking.repository.EventRepository;
 import lombok.RequiredArgsConstructor;
@@ -36,11 +38,54 @@ public class EventService {
         eventRepository.save(event);
     }
 
+    public Event receiveEvent(InterbankMessageDTO<?> dto, String rawPayload, String sourceUrl) {
+
+        Event event = new Event();
+
+        if (dto == null) {
+            return null;
+        }
+
+        if (eventRepository.existsByIdempotenceKey(dto.getIdempotenceKey())) {
+            throw new RuntimeException("Event already exists");
+        }
+
+        try {
+            event.setMessageType(dto.getMessageType());
+            event.setPayload(rawPayload);
+            event.setUrl(sourceUrl);
+            event.setIdempotenceKey(dto.getIdempotenceKey());
+            event.setDirection(EventDirection.INCOMING);
+            event.setStatus(DeliveryStatus.PENDING);
+        } catch (Exception e) {
+            event.setMessageType(null);
+            event.setPayload(rawPayload);
+            event.setUrl(sourceUrl);
+            if (dto.getIdempotenceKey() != null && dto.getIdempotenceKey().getRoutingNumber() != null && dto.getIdempotenceKey().getLocallyGeneratedKey() != null) {
+                event.setIdempotenceKey(dto.getIdempotenceKey());
+            } else {
+                IdempotenceKey idempotenceKey = new IdempotenceKey();
+                idempotenceKey.setRoutingNumber(111);
+                idempotenceKey.setLocallyGeneratedKey(UUID.randomUUID().toString());
+                event.setIdempotenceKey(idempotenceKey);
+            }
+            event.setDirection(EventDirection.INCOMING);
+            event.setStatus(DeliveryStatus.FAILED);
+
+            throw new RuntimeException("Failed to create event: " + e.getMessage());
+        }
+
+        return eventRepository.save(event);
+    }
+
     public Event createEvent(CreateEventDTO createEventDTO) {
         Event event = new Event();
         event.setPayload(createEventDTO.getPayload());
         event.setUrl(createEventDTO.getUrl());
+        System.out.println("Event created: " + event.getPayload());
         event.setMessageType(createEventDTO.getMessageType());
+        System.out.println("Event created: " + event.getMessageType());
+        event.setDirection(EventDirection.OUTGOING);
 
         IdempotenceKey idempotenceKey = new IdempotenceKey();
         idempotenceKey.setRoutingNumber(111);
@@ -49,8 +94,6 @@ public class EventService {
         event.setIdempotenceKey(idempotenceKey);
 
         Event saved = eventRepository.save(event);
-
-//        eventExecutorService.attemptEventAsync(saved);
 
         return saved;
     }

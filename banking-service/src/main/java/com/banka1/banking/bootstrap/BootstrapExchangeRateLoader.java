@@ -1,10 +1,15 @@
 package com.banka1.banking.bootstrap;
 
 import com.banka1.banking.dto.CreateEventDTO;
+import com.banka1.banking.dto.interbank.InterbankMessageDTO;
+import com.banka1.banking.dto.interbank.InterbankMessageType;
+import com.banka1.banking.dto.interbank.rollbacktx.RollbackTransactionDTO;
 import com.banka1.banking.models.Event;
+import com.banka1.banking.models.helper.IdempotenceKey;
 import com.banka1.banking.services.CurrencyService;
 import com.banka1.banking.services.EventExecutorService;
 import com.banka1.banking.services.EventService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
@@ -33,15 +38,24 @@ public class BootstrapExchangeRateLoader implements CommandLineRunner {
 //         test events
 
         System.out.println("=== Testing event creation ===");
+        InterbankMessageDTO<RollbackTransactionDTO> message = new InterbankMessageDTO<>();
 
-//        CreateEventDTO createEventDTO = new CreateEventDTO();
-//        event.setMessageType("TEST");
-//        event.setUrl("http://localhost:8080/api/v1/events");
-//        event.setPayload("{\"test\":\"test\"}");
+        message.setMessageType(InterbankMessageType.ROLLBACK_TX);
+        IdempotenceKey idempotenceKey = new IdempotenceKey();
+        idempotenceKey.setRoutingNumber(123);
+        idempotenceKey.setLocallyGeneratedKey("123456789");
+        message.setIdempotenceKey(idempotenceKey);
+        message.setMessage(new RollbackTransactionDTO(
+            idempotenceKey
+        ));
+
+        ObjectMapper objectMapper = new ObjectMapper();
+        String json = objectMapper.writeValueAsString(message.getMessage());
+        System.out.println(json);
 
         Event event = eventService.createEvent(new CreateEventDTO(
-                "TEST",
-                "{\"test\":\"test\"}",
+                InterbankMessageType.ROLLBACK_TX,
+                json,
                 "http://localhost:8082/interbank"
         ));
 
