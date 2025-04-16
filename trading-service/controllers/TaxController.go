@@ -86,7 +86,7 @@ func (tc *TaxController) RunTax(c *fiber.Ctx) error {
 //	@Failure		400		{object}	types.Response									"Neispravan ID korisnika (nije validan broj ili <= 0)"
 //	@Failure		500		{object}	types.Response									"Interna greška servera pri dohvatanju podataka iz baze"
 //	@Router			/tax/dashboard/{userID} [get]
-func GetAggregatedTaxForUser(c *fiber.Ctx) error {
+func (tc *TaxController) GetAggregatedTaxForUser(c *fiber.Ctx) error {
 	userID, err := c.ParamsInt("userID")
 	if err != nil || userID <= 0 {
 		return c.Status(400).JSON(types.Response{
@@ -153,5 +153,5 @@ func InitTaxRoutes(app *fiber.App) {
 
 	app.Get("/tax", middlewares.Auth, middlewares.DepartmentCheck("SUPERVISOR"), taxController.GetTaxForAllUsers)
 	app.Post("/tax/run", middlewares.Auth, middlewares.DepartmentCheck("SUPERVISOR"), taxController.RunTax)
-	app.Get("/tax/dashboard/:userID", middlewares.Auth, GetAggregatedTaxForUser)
+	app.Get("/tax/dashboard/:userID", middlewares.Auth, taxController.GetAggregatedTaxForUser)
 }
