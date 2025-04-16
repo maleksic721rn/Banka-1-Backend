@@ -22,14 +22,14 @@ public class ReceiverService {
 
     public Receiver createReceiver(ReceiverDTO receiverDTO){
 
-        if (receiverRepository.existsByOwnerAccountIdAndAccountNumber(
-                receiverDTO.getOwnerAccountId(), receiverDTO.getAccountNumber())) {
+        if (receiverRepository.existsByCustomerIdAndAccountNumber(
+                receiverDTO.getCustomerId(), receiverDTO.getAccountNumber())) {
             throw new IllegalArgumentException("Primalac sa ovim brojem računa već postoji za datog korisnika.");
         }
 
         Receiver receiver = new Receiver();
 
-        receiver.setOwnerAccountId(receiverDTO.getOwnerAccountId());
+        receiver.setCustomerId(receiverDTO.getCustomerId());
         receiver.setAccountNumber(receiverDTO.getAccountNumber());
 
         String[] fullName = receiverDTO.getFullName().trim().split("\\s+",2);
@@ -41,8 +41,8 @@ public class ReceiverService {
         return receiverRepository.save(receiver);
     }
 
-    public List<Receiver> getReceiversByAccountId(Long accountId){
-        return receiverRepository.findByOwnerAccountId(accountId);
+    public List<Receiver> getReceiversByCustomerId(Long customerId){
+        return receiverRepository.findByCustomerIdOrderByUsageCountDesc(customerId);
     }
 
     public Receiver updateReceiver(Long id,ReceiverDTO receiverDTO){
@@ -54,14 +54,17 @@ public class ReceiverService {
 
         Receiver receiver = optionalReceiver.get();
 
-        receiver.setAccountNumber(receiverDTO.getAccountNumber());
+        if(receiverDTO.getAddress() != null)
+             receiver.setAccountNumber(receiverDTO.getAccountNumber());
+
         if(receiverDTO.getFullName() != null){
             String[] fullName = receiverDTO.getFullName().trim().split("\\s+",2);
             receiver.setFirstName(fullName[0]);
             receiver.setLastName(fullName.length > 1 ? fullName[1] : "");
         }
 
-        receiver.setAddress(receiverDTO.getAddress());
+        if(receiverDTO.getAddress() != null)
+             receiver.setAddress(receiverDTO.getAddress());
 
         return receiverRepository.save(receiver);
     }
@@ -74,7 +77,15 @@ public class ReceiverService {
     }
 
     public boolean accountExists(Long id){
-        return receiverRepository.existsById(id);
+        return receiverRepository.existsByCustomerId(id);
+    }
+
+
+    public void incrementUsage(Long receiverId) {
+        Receiver receiver = receiverRepository.findById(receiverId)
+                .orElseThrow(() -> new IllegalArgumentException("Receiver not found"));
+        receiver.setUsageCount(receiver.getUsageCount() + 1);
+        receiverRepository.save(receiver);
     }
 
 }

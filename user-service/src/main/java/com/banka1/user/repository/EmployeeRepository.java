@@ -15,8 +15,8 @@ import java.util.Optional;
 public interface EmployeeRepository extends JpaRepository<Employee, Long> {
 
     Optional<Employee> findByEmail(String email);
-    List<Employee> findByDepartment(Department department);
 
+    List<Employee> findByDepartment(Department department);
 
 
     boolean existsByEmail(String email);
@@ -35,11 +35,6 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
             @Param("email") String email,
             @Param("position") String position
     );
-
-//    @Query("SELECT e FROM Employee e WHERE e.department = 'AGENT'")
-//    List<Employee> getActuaries();
-
     @Query("SELECT e FROM Employee e WHERE e.department = 'AGENT' OR e.department ='SUPERVISOR'")
     List<Employee> getActuaries();
-
 }

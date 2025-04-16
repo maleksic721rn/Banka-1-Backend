@@ -121,7 +121,9 @@ public class AuthAspect {
                         return false;
                     encounteredDto = true;
                 } else if(types[i] == ReceiverDTO.class) {
-                    if(!Objects.equals(accountService.findById(((ReceiverDTO) values[i]).getOwnerAccountId()).getOwnerID(), userId))
+//                   // if(!Objects.equals(accountService.findById(((ReceiverDTO) values[i]).getCustomerId()), userId))
+                    Long customerId = ((ReceiverDTO) values[i]).getCustomerId();
+                    if (!Objects.equals(customerId, userId))
                         return false;
                     encounteredDto = true;
                 } else if(types[i] == InternalTransferDTO.class) {
@@ -304,7 +306,6 @@ public class AuthAspect {
 
             if(!authorization.customerOnlyOperation()) {
                 if(claims.get("isEmployed", Boolean.class)) {
-                    // Zaposleni
                     return joinPoint.proceed();
                 }
             }
@@ -316,7 +317,14 @@ public class AuthAspect {
                 OptionalInt maybeReceiverIdIndex = IntStream.range(0, methodSignature.getParameterNames().length).filter(i -> methodSignature.getParameterNames()[i].compareTo("receiverId") == 0).findFirst();
                 if (maybeReceiverIdIndex.isPresent()) {
                     Receiver receiver = receiverService.findById(Long.valueOf(joinPoint.getArgs()[maybeReceiverIdIndex.getAsInt()].toString()));
-                    if (Objects.equals(claims.get("id", Long.class), accountService.findById(receiver.getOwnerAccountId()).getOwnerID()))
+//                    if (Objects.equals(claims.get("id", Long.class), accountService.findById(receiver.getCustomerId())))
+                    if (Objects.equals(claims.get("id", Long.class), receiver.getCustomerId()))
+                        return joinPoint.proceed();
+                }
+
+                OptionalInt maybeCustomerIdIndex = IntStream.range(0, methodSignature.getParameterNames().length).filter(i -> methodSignature.getParameterNames()[i].compareTo("customerId") == 0).findFirst();
+                if (maybeCustomerIdIndex.isPresent()) {
+                    if (Objects.equals(claims.get("id", Long.class), Long.valueOf(joinPoint.getArgs()[maybeCustomerIdIndex.getAsInt()].toString())))
                         return joinPoint.proceed();
                 }
             }

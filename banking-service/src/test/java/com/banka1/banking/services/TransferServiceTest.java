@@ -5,6 +5,7 @@ import com.banka1.banking.dto.InternalTransferDTO;
 import com.banka1.banking.dto.MoneyTransferDTO;
 import com.banka1.banking.dto.NotificationDTO;
 import com.banka1.banking.models.*;
+import com.banka1.banking.models.Currency;
 import com.banka1.banking.models.helper.CurrencyType;
 import com.banka1.banking.models.helper.TransferStatus;
 import com.banka1.banking.models.helper.TransferType;
@@ -25,10 +26,7 @@ import org.mockito.quality.Strictness;
 import org.springframework.jms.core.JmsTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -67,6 +65,9 @@ public class TransferServiceTest {
 
     @Mock
     private ExchangeService exchangeService;
+
+    @Mock
+    private LoanService loanService;
 
     @InjectMocks
     private TransferService transferService;
@@ -605,5 +606,121 @@ public class TransferServiceTest {
 
         assertThrows(RuntimeException.class, () -> transferService.processExternalTransfer(2L));
         assertEquals(TransferStatus.FAILED, externalTransfer.getStatus());
+    }
+
+    @Test
+    public void testPerformRsdToForeign_successfulExchange() {
+
+        Double amount = 1000.0;
+
+        Account fromAccount = new Account();
+        fromAccount.setCurrencyType(CurrencyType.RSD);
+        fromAccount.setBalance(5000.0);
+
+        Account toAccount = new Account();
+        toAccount.setCurrencyType(CurrencyType.EUR);
+        toAccount.setBalance(200.0);
+        toAccount.setOwnerID(1L);
+
+        Currency rsdCurrency = new Currency();
+        rsdCurrency.setCode(CurrencyType.RSD);
+        Currency eurCurrency = new Currency();
+        rsdCurrency.setCode(CurrencyType.EUR);
+
+        Account rsdBankAccount = new Account();
+        rsdBankAccount.setBalance(100000.0);
+        rsdBankAccount.setCurrencyType(CurrencyType.RSD);
+        rsdBankAccount.setCompany(new Company());
+
+        Account eurBankAccount = new Account();
+        eurBankAccount.setBalance(100000.0);
+        eurBankAccount.setCurrencyType(CurrencyType.EUR);
+        eurBankAccount.setCompany(new Company());
+
+        CustomerDTO customer = new CustomerDTO();
+        customer.setFirstName("John");
+        customer.setLastName("Doe");
+
+        Map<String, Object> exchangeMock = new HashMap<>();
+        exchangeMock.put("finalAmount", 8.5);
+        exchangeMock.put("provision", 0.5);
+
+        when(currencyRepository.getByCode(CurrencyType.RSD)).thenReturn(rsdCurrency);
+        when(currencyRepository.getByCode(CurrencyType.EUR)).thenReturn(eurCurrency);
+        when(bankAccountUtils.getBankAccountForCurrency(CurrencyType.RSD)).thenReturn(rsdBankAccount);
+        when(bankAccountUtils.getBankAccountForCurrency(CurrencyType.EUR)).thenReturn(eurBankAccount);
+        when(userServiceCustomer.getCustomerById(1L)).thenReturn(customer);
+        when(exchangeService.calculatePreviewExchangeAutomatic("RSD", "EUR", amount)).thenReturn(exchangeMock);
+
+
+        Map<String, Object> result = transferService.performRsdToForeign(amount, fromAccount, toAccount);
+
+
+        assertNotNull(result);
+        assertEquals(8.5, result.get("finalAmount"));
+        assertEquals(0.5, result.get("provision"));
+
+        assertEquals(4000.0, fromAccount.getBalance());
+        assertEquals(208.5, toAccount.getBalance());
+        assertEquals(100000.0, rsdBankAccount.getBalance());
+        assertEquals(100991.5, eurBankAccount.getBalance());
+    }
+
+    @Test
+    public void testPerformForeignToRsd_successfulExchange() {
+        // Arrange
+        Double amount = 100.0;
+
+        Account fromAccount = new Account();
+        fromAccount.setCurrencyType(CurrencyType.EUR);
+        fromAccount.setBalance(1000.0);
+
+        Account toAccount = new Account();
+        toAccount.setCurrencyType(CurrencyType.RSD);
+        toAccount.setBalance(10000.0);
+        toAccount.setOwnerID(1L);
+
+        Currency eurCurrency = new Currency();
+        eurCurrency.setCode(CurrencyType.EUR);
+        Currency rsdCurrency = new Currency();
+        rsdCurrency.setCode(CurrencyType.RSD);
+
+        Account eurBankAccount = new Account();
+        eurBankAccount.setCurrencyType(CurrencyType.EUR);
+        eurBankAccount.setBalance(100000.0);
+        eurBankAccount.setCompany(new Company());
+
+        Account rsdBankAccount = new Account();
+        rsdBankAccount.setCurrencyType(CurrencyType.RSD);
+        rsdBankAccount.setBalance(200000.0);
+        rsdBankAccount.setCompany(new Company());
+
+        CustomerDTO customer = new CustomerDTO();
+        customer.setFirstName("Ana");
+        customer.setLastName("Markovic");
+
+        Map<String, Object> exchangeMock = new HashMap<>();
+        exchangeMock.put("finalAmount", 11700.0);
+        exchangeMock.put("provision", 100.0);
+
+        when(currencyRepository.getByCode(CurrencyType.RSD)).thenReturn(rsdCurrency);
+        when(currencyRepository.getByCode(CurrencyType.EUR)).thenReturn(eurCurrency);
+        when(userServiceCustomer.getCustomerById(1L)).thenReturn(customer);
+        when(bankAccountUtils.getBankAccountForCurrency(CurrencyType.RSD)).thenReturn(rsdBankAccount);
+        when(bankAccountUtils.getBankAccountForCurrency(CurrencyType.EUR)).thenReturn(eurBankAccount);
+        when(exchangeService.calculatePreviewExchangeAutomatic("EUR", "RSD", amount)).thenReturn(exchangeMock);
+
+        // Act
+        Map<String, Object> result = transferService.performForeignToRsd(amount, fromAccount, toAccount);
+
+        // Assert
+        assertNotNull(result);
+        assertEquals(11700.0, result.get("finalAmount"));
+        assertEquals(100.0, result.get("provision"));
+
+        assertEquals(900.0, fromAccount.getBalance());
+        assertEquals(21700.0, toAccount.getBalance());
+        assertEquals(100100.0, eurBankAccount.getBalance());
+        assertEquals(188300.0, rsdBankAccount.getBalance());
     }
 }

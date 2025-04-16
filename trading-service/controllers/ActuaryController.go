@@ -173,6 +173,41 @@ func (ac *ActuaryController) GetAllActuariesDB(c *fiber.Ctx) error {
 	})
 }
 
+// GetAllActuaryAgentsDB godoc
+//
+//	@Summary		Dobavljanje aktuara koji su agenti
+//	@Description	Vraća listu svih aktuara iz baze čiji je departman "AGENT".
+//	@Tags			Actuaries
+//	@Produce		json
+//	@Success		200	{object}	types.Response{data=[]types.Actuary}	"Uspešno dobavljeni agenti"
+//	@Failure		500	{object}	types.Response							"Greška u bazi"
+//	@Router			/actuaries/agents [get]
+func (ac *ActuaryController) GetAllActuaryAgentsDB(c *fiber.Ctx) error {
+	var agents []types.Actuary
+
+	result := db.DB.Where("department = ?", "AGENT").Find(&agents)
+	if result.Error != nil {
+		log.Infof("Database error: %v\n", result.Error)
+		return c.Status(500).JSON(types.Response{
+			Success: false,
+			Error:   "Database error",
+		})
+	}
+
+	if len(agents) == 0 {
+		return c.Status(404).JSON(types.Response{
+			Success: false,
+			Error:   "No actuary agents found",
+		})
+	}
+
+	return c.JSON(types.Response{
+		Success: true,
+		Data:    agents,
+		Error:   "",
+	})
+}
+
 // GetActuaryByID godoc
 //
 //	@Summary		Dobavljanje aktuara po ID-ju
@@ -414,6 +449,7 @@ func InitActuaryRoutes(app *fiber.App) {
 	app.Post("/actuaries", middlewares.Auth, actuaryController.CreateActuary)
 	//app.Get("/actuaries/all", middlewares.Auth, actuaryController.GetAllActuariesAPI)
 	app.Get("/actuaries/all", middlewares.Auth, actuaryController.GetAllActuariesDB)
+	app.Get("/actuaries/agents", middlewares.Auth, actuaryController.GetAllActuaryAgentsDB)
 	//	app.Get("/actuaries/filter", middlewares.Auth, actuaryController.FilterActuaries)
 	app.Get("/actuaries/filter", middlewares.Auth, actuaryController.FilterActuariesDB)
 	app.Get("/actuaries/profits", middlewares.Auth, actuaryController.GetActuaryProfits)

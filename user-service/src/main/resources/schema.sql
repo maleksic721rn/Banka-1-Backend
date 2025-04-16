@@ -19,8 +19,6 @@ create table if not exists customer
     verification_code varchar(255)
 );
 
-alter table customer
-    owner to user_service_user;
 
 create table  if not exists customer_bank_accounts
 (
@@ -30,8 +28,6 @@ create table  if not exists customer_bank_accounts
     bank_account varchar(255)
 );
 
-alter table customer_bank_accounts
-    owner to user_service_user;
 
 CREATE TABLE IF NOT EXISTS customer_permissions (
     customer_id BIGINT NOT NULL REFERENCES customer(id),
@@ -61,8 +57,6 @@ ALTER TABLE customer_permissions
     ]
     ));
 
-ALTER TABLE customer_permissions
-    OWNER TO user_service_user;
 
 create table  if not exists employee
 (
@@ -95,8 +89,6 @@ create table  if not exists employee
     verification_code varchar(255)
 );
 
-alter table employee
-    owner to user_service_user;
 
 create table  if not exists employee_permissions
 (
@@ -108,9 +100,6 @@ create table  if not exists employee_permissions
             check ((permission)::text = ANY
                    ((ARRAY ['CREATE_EMPLOYEE'::character varying, 'EDIT_EMPLOYEE'::character varying, 'DELETE_EMPLOYEE'::character varying, 'LIST_EMPLOYEE'::character varying, 'READ_EMPLOYEE'::character varying, 'SET_EMPLOYEE_PERMISSION'::character varying, 'CREATE_CUSTOMER'::character varying, 'EDIT_CUSTOMER'::character varying, 'DELETE_CUSTOMER'::character varying, 'LIST_CUSTOMER'::character varying, 'READ_CUSTOMER'::character varying, 'SET_CUSTOMER_PERMISSION'::character varying])::text[]))
 );
-
-alter table employee_permissions
-    owner to user_service_user;
 
 
 create table if not exists  reset_password
@@ -125,8 +114,6 @@ create table if not exists  reset_password
     token           varchar(255) not null
 );
 
-alter table reset_password
-    owner to user_service_user;
 
 create table  if not exists set_password
 (
@@ -140,6 +127,4 @@ create table  if not exists set_password
     token           varchar(255)
 );
 
-alter table set_password
-    owner to user_service_user;
 

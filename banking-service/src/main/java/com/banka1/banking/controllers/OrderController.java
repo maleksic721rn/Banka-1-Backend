@@ -34,11 +34,12 @@ public class OrderController {
             Long accountId = Long.valueOf(claims.get("accountId", Integer.class));
             Long userId = Long.valueOf(claims.get("userId", Integer.class));
             Double amount = Double.valueOf(claims.get("amount", String.class));
+            Double fee = Double.parseDouble((String) claims.get("fee"));
 
             if(direction == null)
                 throw new Exception();
 
-            Double finalAmount = orderService.executeOrder(direction, userId, accountId, amount);
+            Double finalAmount = orderService.executeOrder(direction, userId, accountId, amount, fee);
 
             return ResponseTemplate.create(ResponseEntity.status(HttpStatus.OK), true, Map.of("finalAmount", finalAmount), null);
         } catch (IllegalArgumentException e) {

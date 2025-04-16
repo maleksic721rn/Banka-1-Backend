@@ -86,6 +86,11 @@ public class AccountService {
             account.setCompany(companyToUse);
         }
 
+        if (account.getType() != null) {
+            account.setType(account.getType());
+        } else {
+            account.setType(AccountType.CURRENT);
+        }
         if (account.getBalance() != null) {
             account.setBalance(account.getBalance());
         } else {

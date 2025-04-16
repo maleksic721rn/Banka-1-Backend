@@ -11,4 +11,5 @@ public class AuthorizedPersonDTO {
     private String phoneNumber;
     private Long companyID;
     private String email;
+    private String birthday;
 }

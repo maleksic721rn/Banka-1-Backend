@@ -31,7 +31,7 @@ func readToken(tokenString string) (*jwt.Token, jwt.MapClaims, error) {
 	return token, claims, nil
 }
 
-func NewOrderToken(direction string, userID uint, accountID uint, amount float64) (string, error) {
+func NewOrderToken(direction string, userID uint, accountID uint, amount float64, fee float64) (string, error) {
 	key, err := getSigningKey()
 	if err != nil {
 		return "", err
@@ -42,6 +42,7 @@ func NewOrderToken(direction string, userID uint, accountID uint, amount float64
 		"userId":    userID,
 		"accountId": accountID,
 		"amount":    fmt.Sprintf("%f", amount),
+		"fee":       fmt.Sprintf("%f", fee),
 	}).SignedString(key)
 
 	if err != nil {

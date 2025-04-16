@@ -4,17 +4,11 @@ import com.banka1.banking.dto.CustomerDTO;
 import com.banka1.banking.dto.InternalTransferDTO;
 import com.banka1.banking.dto.MoneyTransferDTO;
 import com.banka1.banking.dto.NotificationDTO;
-import com.banka1.banking.models.Account;
-import com.banka1.banking.models.Currency;
-import com.banka1.banking.models.Transaction;
-import com.banka1.banking.models.Transfer;
+import com.banka1.banking.models.*;
 import com.banka1.banking.models.helper.CurrencyType;
 import com.banka1.banking.models.helper.TransferStatus;
 import com.banka1.banking.models.helper.TransferType;
-import com.banka1.banking.repository.AccountRepository;
-import com.banka1.banking.repository.CurrencyRepository;
-import com.banka1.banking.repository.TransactionRepository;
-import com.banka1.banking.repository.TransferRepository;
+import com.banka1.banking.repository.*;
 import com.banka1.common.listener.MessageHelper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -54,9 +48,10 @@ public class TransferService {
     private final OtpTokenService otpTokenService;
 
     private final BankAccountUtils bankAccountUtils;
+    private final ReceiverService receiverService;
 
 
-    public TransferService(AccountRepository accountRepository, TransferRepository transferRepository, TransactionRepository transactionRepository, CurrencyRepository currencyRepository, JmsTemplate jmsTemplate, MessageHelper messageHelper, @Value("${destination.email}") String destinationEmail, UserServiceCustomer userServiceCustomer, ExchangeService exchangeService, OtpTokenService otpTokenService, BankAccountUtils bankAccountUtils) {
+    public TransferService(AccountRepository accountRepository, TransferRepository transferRepository, TransactionRepository transactionRepository, CurrencyRepository currencyRepository, JmsTemplate jmsTemplate, MessageHelper messageHelper, @Value("${destination.email}") String destinationEmail, UserServiceCustomer userServiceCustomer, ExchangeService exchangeService, OtpTokenService otpTokenService, BankAccountUtils bankAccountUtils, ReceiverService receiverService) {
         this.accountRepository = accountRepository;
         this.transferRepository = transferRepository;
         this.transactionRepository = transactionRepository;
@@ -68,6 +63,7 @@ public class TransferService {
         this.exchangeService = exchangeService;
         this.otpTokenService = otpTokenService;
         this.bankAccountUtils = bankAccountUtils;
+        this.receiverService = receiverService;
     }
 
     @Transactional(isolation = Isolation.SERIALIZABLE)
@@ -174,7 +170,8 @@ public class TransferService {
                 "Promena valute",
                 fromCurrencyBankAccount.getCompany().getName(),
                 fromCurrency,
-                fromCurrency
+                fromCurrency,
+                null
         );
 
         Transfer transferFromBank = createTransfer(
@@ -184,7 +181,8 @@ public class TransferService {
                 "Promena valute",
                 receiver.getFirstName() + " " + receiver.getLastName(),
                 toCurrency,
-                toCurrency
+                toCurrency,
+                null
         );
         Transfer feeTransfer = createTransfer(
                 fromAccount,
@@ -193,7 +191,8 @@ public class TransferService {
                 "Exchange fee from " + fromCurrency.getCode() + " to " + toCurrency.getCode(),
                 rsdBankAccount.getCompany().getName(),
                 fromCurrency,
-                rsd
+                rsd,
+                null
         );
 
 
@@ -239,7 +238,7 @@ public class TransferService {
     /**
      * Performs an exchange from RSD to a foreign currency.
      */
-    private Map<String, Object> performRsdToForeign(Double amount, Account fromAccount, Account toAccount) {
+    public Map<String, Object> performRsdToForeign(Double amount, Account fromAccount, Account toAccount) {
         if (amount <= 0) {
             throw new IllegalArgumentException("Amount must be positive");
         }
@@ -274,7 +273,8 @@ public class TransferService {
                 "Promena valute",
                 rsdBankAccount.getCompany().getName(),
                 rsd,
-                rsd
+                rsd,
+                null
         );
 
         Transfer transferFromBank = createTransfer(
@@ -284,7 +284,8 @@ public class TransferService {
                 "Promena valute",
                 receiver.getFirstName() + " " + receiver.getLastName(),
                 toCurrency,
-                toCurrency
+                toCurrency,
+                null
         );
 
         Transaction transactionToBank = createTransaction(
@@ -321,7 +322,7 @@ public class TransferService {
     /**
      * Performs an exchange from a foreign currency to RSD.
      */
-    private Map<String, Object> performForeignToRsd(Double amount, Account fromAccount, Account toAccount) {
+    public Map<String, Object> performForeignToRsd(Double amount, Account fromAccount, Account toAccount) {
         if (amount <= 0) {
             throw new IllegalArgumentException("Amount must be positive");
         }
@@ -358,7 +359,8 @@ public class TransferService {
                 "Promena valute",
                 rsdBankAccount.getCompany().getName(),
                 fromCurrency,
-                rsd
+                rsd,
+                null
         );
 
         Transfer transferFromBank = createTransfer(
@@ -368,7 +370,8 @@ public class TransferService {
                 "Promena valute",
                 receiver.getFirstName() + " " + receiver.getLastName(),
                 rsd,
-                rsd
+                rsd,
+                null
         );
 
         Transaction transactionToBank = createTransaction(
@@ -412,7 +415,8 @@ public class TransferService {
             String description,
             String receiver,
             Currency fromCurrency,
-            Currency toCurrency
+            Currency toCurrency,
+            Long savedReceiverId
     ) {
         Transfer transfer = new Transfer();
         transfer.setFromAccountId(fromAccount);
@@ -425,6 +429,7 @@ public class TransferService {
         transfer.setFromCurrency(fromCurrency);
         transfer.setToCurrency(toCurrency);
         transfer.setCreatedAt(System.currentTimeMillis());
+        transfer.setSavedReceiverId(savedReceiverId);
         return transfer;
     }
 
@@ -556,6 +561,10 @@ public class TransferService {
             transfer.setCompletedAt(System.currentTimeMillis());
             transferRepository.save(transfer);
 
+            //Inkrementiranje transakcije za fast payment opciju
+            if(transfer.getSavedReceiverId() != null)
+                receiverService.incrementUsage(transfer.getSavedReceiverId());
+
             return "Transfer completed successfully";
         }catch (Exception e) {
             throw new RuntimeException("Transaction failed, rollback initiated", e);
@@ -622,6 +631,10 @@ public class TransferService {
             transfer.setCompletedAt(Instant.now().toEpochMilli());
             transferRepository.save(transfer);
 
+            //Inkrementiranje transakcije za fast payment opciju
+            if(transfer.getSavedReceiverId() != null)
+                receiverService.incrementUsage(transfer.getSavedReceiverId());
+
             return "Transfer completed successfully";
         } catch (Exception e) {
             transfer.setStatus(TransferStatus.FAILED);
@@ -647,7 +660,6 @@ public class TransferService {
         if(!fromAccount.getCurrencyType().equals(toAccount.getCurrencyType())){
             return false;
         }
-
         return fromAccount.getOwnerID().equals(toAccount.getOwnerID());
     }
 
@@ -667,10 +679,19 @@ public class TransferService {
             return false;
         }
 
+        // PROVERA ZA RECEIVERA
+        if (transferDTO.getSavedReceiverId() != null) {
+            Receiver receiverExists = receiverService.findById(transferDTO.getSavedReceiverId());
+
+            if (receiverExists == null) {
+                return false;
+            }
+        }
+
         return !fromAccount.getOwnerID().equals(toAccount.getOwnerID());
     }
 
-    public Transfer createInternalTransferEntity(Account fromAccount, Account toAccount, double amount, CustomerDTO customerData, String description) {
+    public Transfer createInternalTransferEntity(Account fromAccount, Account toAccount,InternalTransferDTO internalTransferDTO, CustomerDTO customerData, String description) {
         Currency fromCurrency = currencyRepository.findByCode(fromAccount.getCurrencyType())
                 .orElseThrow(() -> new IllegalArgumentException("Greska"));
 
@@ -683,7 +704,7 @@ public class TransferService {
         Transfer transfer = new Transfer();
         transfer.setFromAccountId(fromAccount);
         transfer.setToAccountId(toAccount);
-        transfer.setAmount(amount);
+        transfer.setAmount(internalTransferDTO.getAmount());
         transfer.setStatus(TransferStatus.PENDING);
         transfer.setType(TransferType.INTERNAL);
         transfer.setPaymentDescription(description);
@@ -716,7 +737,7 @@ public class TransferService {
             String firstName = customerData.getFirstName();
             String lastName = customerData.getLastName();
 
-            var transfer = createInternalTransferEntity(fromAccount, toAccount, internalTransferDTO.getAmount(), customerData, "Interni prenos");
+            var transfer = createInternalTransferEntity(fromAccount, toAccount, internalTransferDTO, customerData, "Interni prenos");
 
             String otpCode = otpTokenService.generateOtp(transfer.getId());
             transfer.setOtp(otpCode);
@@ -776,6 +797,8 @@ public class TransferService {
         transfer.setPaymentReference(moneyTransferDTO.getPayementReference() != null ? moneyTransferDTO.getPayementReference() : "N/A");
         transfer.setPaymentDescription(moneyTransferDTO.getPayementDescription());
         transfer.setCreatedAt(System.currentTimeMillis());
+
+        transfer.setSavedReceiverId(moneyTransferDTO.getSavedReceiverId());
 
         return transferRepository.saveAndFlush(transfer);
     }

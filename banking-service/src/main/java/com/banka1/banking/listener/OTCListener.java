@@ -3,7 +3,6 @@ package com.banka1.banking.listener;
 import com.banka1.banking.dto.OTCPremiumFeeDTO;
 import com.banka1.banking.dto.OTCTransactionACKDTO;
 import com.banka1.banking.dto.OTCTransactionInitiationDTO;
-import com.banka1.banking.saga.OTCTransaction;
 import com.banka1.banking.services.OTCService;
 import com.banka1.common.listener.MessageHelper;
 import jakarta.jms.JMSException;
@@ -35,9 +34,8 @@ public class OTCListener {
     @JmsListener(destination = "${destination.otc.init}", concurrency = "5-10")
     public void onInitMessage(Message message) throws JMSException {
         OTCTransactionInitiationDTO dto = messageHelper.getMessage(message, OTCTransactionInitiationDTO.class);
-        OTCTransaction transaction = new OTCTransaction(dto.getSellerAccountId(), dto.getBuyerAccountId(), dto.getAmount());
         log.info("Initiating OTC transaction " + dto.getUid());
-        otcService.initiate(dto.getUid(), transaction);
+        otcService.initiate(dto.getUid(), dto.getSellerAccountId(), dto.getBuyerAccountId(), dto.getAmount());
     }
 
     @JmsListener(destination = "${destination.otc.premium}", concurrency = "5-10")
