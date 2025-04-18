@@ -91,21 +91,30 @@ func main() {
 	orders.LoadPortfolios()
 	log.Println("Finished loading default portfolios")
 
-	log.Println("Starting to calculate volumes for all securities...")
-	var securities []types.Security
-	if err := db.DB.Find(&securities).Error; err != nil {
-		log.Printf("Warning: Failed to fetch securities for volume update: %v", err)
-	} else {
-		for _, sec := range securities {
-			err := orders.UpdateAvailableVolume(sec.ID)
-			if err != nil {
-				log.Printf("Warning: Failed to update volume for security %s (ID %d): %v", sec.Ticker, sec.ID, err)
-			}
-		}
-	}
-	log.Println("Finished calculating volumes")
+	log.Println("Starting to load default sell orders...")
+	orders.CreateInitialSellOrdersFromBank()
+	log.Println("Finished loading default sell orders")
+
+	// Ovo je bilo za prvobitno registrovanje volume - ali je zakoentarisano zato sto
+	// 	orders.CreateInitialSellOrdersFromBank() ucitava sell ordere i usput azurira Volume
+
+	//log.Println("Starting to calculate volumes for all securities...")
+	//var securities []types.Security
+	//if err := db.DB.Find(&securities).Error; err != nil {
+	//	log.Printf("Warning: Failed to fetch securities for volume update: %v", err)
+	//} else {
+	//	for _, sec := range securities {
+	//		err := orders.UpdateAvailableVolume(sec.ID)
+	//		if err != nil {
+	//			log.Printf("Warning: Failed to update volume for security %s (ID %d): %v", sec.Ticker, sec.ID, err)
+	//		}
+	//	}
+	//}
+	//log.Println("Finished calculating volumes")
 
 	cron.StartScheduler()
+
+	broker.FailAllOTC()
 
 	broker.StartListeners()
 

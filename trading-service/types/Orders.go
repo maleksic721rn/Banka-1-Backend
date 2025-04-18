@@ -34,3 +34,7 @@ type CreateOrderRequest struct {
 	AON               bool     `json:"aon"`
 	Margin            bool     `json:"margin"`
 }
+
+func (Order) TableName() string {
+	return "order"
+}
