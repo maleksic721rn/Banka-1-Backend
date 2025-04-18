@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"fmt"
 	"log"
 	"time"
 
@@ -69,9 +70,79 @@ AND NOT is_paid;`).Rows()
 //	@Failure		500	{object}	types.Response	"Greska"
 //	@Router			/tax/run [post]
 func (tc *TaxController) RunTax(c *fiber.Ctx) error {
-	return c.Status(500).JSON(types.Response{
-		Success: false,
-		Error:   "Nije implementirano.",
+	now := time.Now()
+	startOfMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+	endOfMonth := startOfMonth.AddDate(0, 1, 0)
+
+	rows, err := db.DB.Raw(`
+		SELECT t.id, t.user_id, t.account_id, t.buy_price, t.sell_price, t.currency
+		FROM transactions t
+		WHERE t.sell_price > t.buy_price
+		  AND t.created_at >= ?
+		  AND t.created_at < ?
+		  AND t.tax_paid = FALSE
+	`, startOfMonth, endOfMonth).Rows()
+
+	if err != nil {
+		return c.Status(500).JSON(types.Response{
+			Success: false,
+			Error:   "Error fetching transactions: " + err.Error(),
+		})
+	}
+	defer rows.Close()
+
+	var failedTransactions []int64
+	for rows.Next() {
+		var transaction struct {
+			ID        int64
+			UserID    int64
+			AccountID int64
+			BuyPrice  float64
+			SellPrice float64
+			Currency  string
+		}
+		if err := rows.Scan(&transaction.ID, &transaction.UserID, &transaction.AccountID, &transaction.BuyPrice, &transaction.SellPrice, &transaction.Currency); err != nil {
+			return c.Status(500).JSON(types.Response{
+				Success: false,
+				Error:   "Error reading transaction data: " + err.Error(),
+			})
+		}
+
+		profit := transaction.SellPrice - transaction.BuyPrice
+		tax := profit * 0.15
+
+		err = db.DB.Exec(`
+			UPDATE accounts
+			SET balance = balance - ?
+			WHERE id = ?
+			  AND balance >= ?
+		`, tax, transaction.AccountID, tax).Error
+		if err != nil {
+			failedTransactions = append(failedTransactions, transaction.ID)
+			continue
+		}
+
+		err = db.DB.Exec(`
+			UPDATE transactions
+			SET tax_paid = TRUE
+			WHERE id = ?
+		`, transaction.ID).Error
+		if err != nil {
+			failedTransactions = append(failedTransactions, transaction.ID)
+			continue
+		}
+	}
+
+	if len(failedTransactions) > 0 {
+		return c.Status(207).JSON(types.Response{
+			Success: false,
+			Error:   "Some transactions failed to process: " + fmt.Sprint(failedTransactions),
+		})
+	}
+
+	return c.Status(202).JSON(types.Response{
+		Success: true,
+		Data:    "Tax calculation and deduction completed successfully.",
 	})
 }
 

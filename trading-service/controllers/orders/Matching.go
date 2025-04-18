@@ -269,7 +269,7 @@ func executePartial(order types.Order, price float64, tx *gorm.DB) int {
 
 	var match types.Order
 	direction := "buy"
-	if order.Direction == "buy" {
+	if strings.ToLower(order.Direction) == "buy" {
 		direction = "sell"
 	} else {
 		direction = "buy"
@@ -305,9 +305,12 @@ func executePartial(order types.Order, price float64, tx *gorm.DB) int {
 		}
 	}
 
-	if !canPreExecute(match) {
-		fmt.Println("Preskočen match sa nedovoljnim uslovima")
-		return 0
+	// Po specifikaciji, MARKET BUY ne proverava matchov limit
+	if !(strings.ToUpper(order.OrderType) == "MARKET" && strings.ToLower(order.Direction) == "buy") {
+		if !canPreExecute(match) {
+			fmt.Println("Preskočen match sa nedovoljnim uslovima")
+			return 0
+		}
 	}
 
 	marginOrder := order
@@ -507,13 +510,13 @@ func canPreExecute(order types.Order) bool {
 		return false
 	}
 
-	price := getListingPrice(order)
-	if price < 0 {
-		return false
-	}
 	if strings.ToUpper(order.OrderType) == "LIMIT" {
 		if order.LimitPricePerUnit == nil {
 			fmt.Println("LIMIT order bez LimitPricePerUnit")
+			return false
+		}
+		price := getListingPrice(order)
+		if price < 0 {
 			return false
 		}
 		if order.Direction == "sell" {
@@ -526,6 +529,10 @@ func canPreExecute(order types.Order) bool {
 			fmt.Println("STOP order bez StopPricePerUnit")
 			return false
 		}
+		price := getListingPrice(order)
+		if price < 0 {
+			return false
+		}
 		if order.Direction == "sell" {
 			return price <= *order.StopPricePerUnit
 		} else {
@@ -534,6 +541,10 @@ func canPreExecute(order types.Order) bool {
 	} else if strings.ToUpper(order.OrderType) == "STOP-LIMIT" {
 		if order.LimitPricePerUnit == nil || order.StopPricePerUnit == nil {
 			fmt.Println("STOP-LIMIT order bez neophodnih cena")
+			return false
+		}
+		price := getListingPrice(order)
+		if price < 0 {
 			return false
 		}
 		if order.Direction == "sell" {
@@ -548,14 +559,14 @@ func canPreExecute(order types.Order) bool {
 }
 
 func getBuyerID(a, b types.Order) uint {
-	if a.Direction == "buy" {
+	if strings.ToLower(a.Direction) == "buy" {
 		return a.UserID
 	}
 	return b.UserID
 }
 
 func getSellerID(a, b types.Order) uint {
-	if a.Direction == "sell" {
+	if strings.ToLower(a.Direction) == "sell" {
 		return a.UserID
 	}
 	return b.UserID
@@ -608,7 +619,7 @@ func UpdateAvailableVolumeTx(tx *gorm.DB, securityID uint) error {
 	// Direktno koristi RAW SQL da izbegnemo GORM probleme sa pointerima i imenovanjem
 	query := `
 		SELECT SUM(remaining_parts)
-		FROM orders
+		FROM "order"
 		WHERE security_id = ?
 		  AND lower(direction) = 'sell'
 		  AND lower(status) = 'approved'
