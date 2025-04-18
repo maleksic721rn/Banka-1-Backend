@@ -94,44 +94,60 @@ func GetAggregatedTaxForUser(c *fiber.Ctx) error {
 		})
 	}
 
-	year := time.Now().Format("2006")
-	yearMonth := time.Now().Format("2006-01")
+	now := time.Now()
+	currentYear := now.Year()
+	currentMonth := int(now.Month())
+
+	startOfYear := time.Date(currentYear, time.January, 1, 0, 0, 0, 0, time.UTC)
+	startOfNextYear := time.Date(currentYear+1, time.January, 1, 0, 0, 0, 0, time.UTC)
+	startOfYearTs := startOfYear.Unix()
+	startOfNextYearTs := startOfNextYear.Unix()
+
+	startOfMonth := time.Date(currentYear, time.Month(currentMonth), 1, 0, 0, 0, 0, time.UTC) // Use integer month
+	startOfNextMonth := startOfMonth.AddDate(0, 1, 0)
+	startOfMonthTs := startOfMonth.Unix()
+	startOfNextMonthTs := startOfNextMonth.Unix()
 
 	var paid float64
-	if err := db.DB.Raw(`
-		SELECT COALESCE(SUM(tax_amount), 0)
+	errPaid := db.DB.Raw(`
+		SELECT COALESCE(SUM(tax_amount), 0) 
 		FROM tax
-		WHERE is_paid = 1 AND user_id = ? AND substr(created_at, 1, 4) = ?
-	`, userID, year).Scan(&paid).Error; err != nil {
-		return c.Status(500).JSON(types.Response{
+		WHERE is_paid = TRUE  
+		  AND user_id = ? 
+		  AND created_at >= ? 
+		  AND created_at < ? 
+	`, userID, startOfYearTs, startOfNextYearTs).Scan(&paid).Error
+
+	if errPaid != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(types.Response{
 			Success: false,
-			Error:   "Greška prilikom čitanja plaćenog poreza: " + err.Error(),
+			Error:   "Greška pri dohvatanju plaćenog poreza.",
 		})
 	}
 
 	var unpaid float64
-	if err := db.DB.Raw(`
+	errUnpaid := db.DB.Raw(`
 		SELECT COALESCE(SUM(tax_amount), 0)
 		FROM tax
-		WHERE is_paid = 0 AND user_id = ? AND substr(created_at, 1, 7) = ?
-	`, userID, yearMonth).Scan(&unpaid).Error; err != nil {
-		return c.Status(500).JSON(types.Response{
+		WHERE is_paid = FALSE 
+		  AND user_id = ? 
+		  AND created_at >= ? 
+		  AND created_at < ?
+	`, userID, startOfMonthTs, startOfNextMonthTs).Scan(&unpaid).Error
+
+	if errUnpaid != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(types.Response{
 			Success: false,
-			Error:   "Greška prilikom čitanja neplaćenog poreza: " + err.Error(),
+			Error:   "Greška pri dohvatanju neplaćenog poreza.",
 		})
 	}
 
 	var isActuary bool
-	if err := db.DB.Raw(`
+	db.DB.Raw(`
 		SELECT COUNT(*) > 0
 		FROM actuary
 		WHERE user_id = ?
-	`, userID).Scan(&isActuary).Error; err != nil {
-		return c.Status(500).JSON(types.Response{
-			Success: false,
-			Error:   "Greška prilikom provere da li je korisnik aktuar: " + err.Error(),
-		})
-	}
+	`, userID).Scan(&isActuary)
 
 	response := types.AggregatedTaxResponse{
 		UserID:          uint(userID),
