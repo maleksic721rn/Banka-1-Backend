@@ -1,7 +1,9 @@
 package orders
 
 import (
+	"fmt"
 	"log"
+	"time"
 
 	"banka1.com/db"
 	"banka1.com/types"
@@ -146,3 +148,80 @@ func LoadPortfolios() {
 		log.Println("Portfolio4 uspešno dodat")
 	}
 }
+
+func CreateInitialSellOrdersFromBank() {
+	const InitialQuantity = 50
+	const BankUserId = 5
+	orderTypes := []string{"LIMIT", "MARKET", "STOP", "STOP-LIMIT"}
+
+	var securities []types.Security
+	if err := db.DB.Find(&securities).Error; err != nil {
+		log.Printf("[ERROR] Ne mogu da dohvatim hartije: %v\n", err)
+		return
+	}
+
+	for _, sec := range securities {
+		if sec.Ticker == "MSFT" {
+			log.Printf("Preskačem SELL ordere za MSFT zbog testiranja\n")
+			continue
+		}
+		price := sec.LastPrice
+		if price <= 0 {
+			price = 100.0
+		}
+		limit := price
+		stop := price * 0.95
+
+		for _, ot := range orderTypes {
+			// Proveri da li već postoji takav SELL order
+			var existing types.Order
+			err := db.DB.Where("user_id = ? AND security_id = ? AND direction = ? AND order_type = ?", BankUserId, sec.ID, "sell", ot).First(&existing).Error
+			if err == nil {
+				continue
+			}
+
+			order := types.Order{
+				UserID:         BankUserId,
+				SecurityID:     sec.ID,
+				Direction:      "sell",
+				OrderType:      ot,
+				Quantity:       InitialQuantity,
+				RemainingParts: ptr(InitialQuantity),
+				Status:         "approved",
+				IsDone:         false,
+				LastModified:   time.Now().Unix(),
+			}
+
+			switch ot {
+			case "LIMIT":
+				order.LimitPricePerUnit = &limit
+			case "STOP":
+				order.StopPricePerUnit = &stop
+			case "STOP-LIMIT":
+				order.LimitPricePerUnit = &limit
+				order.StopPricePerUnit = &stop
+			}
+
+			// Kreiraj portfolijo ako ne postoji
+			var p types.Portfolio
+			err = db.DB.Where("user_id = ? AND security_id = ?", BankUserId, sec.ID).First(&p).Error
+			if err != nil {
+				p = types.Portfolio{
+					UserID:     BankUserId,
+					SecurityID: sec.ID,
+					Quantity:   InitialQuantity * len(orderTypes), // jer ima više ordera
+				}
+				_ = db.DB.Create(&p)
+			}
+
+			fmt.Printf("Kreiram SELL order za %s (TIP=%s)\n", sec.Ticker, ot)
+			if err := db.DB.Create(&order).Error; err != nil {
+				log.Printf("Greska pri kreiranju SELL ordera za %s (tip=%s): %v\n", sec.Ticker, ot, err)
+			}
+
+			_ = UpdateAvailableVolume(sec.ID)
+		}
+	}
+}
+
+func ptr(i int) *int { return &i }

@@ -119,6 +119,70 @@ func (oc *OrderController) GetOrders(c *fiber.Ctx) error {
 	})
 }
 
+type PaginatedOrders struct {
+	Orders     []types.OrderResponse `json:"orders"`
+	TotalCount int64                 `json:"totalCount"`
+}
+
+// GetOrdersPaged godoc
+//
+//	@Summary		Preuzimanje paginiranih naloga
+//	@Description	Vraća stranicu naloga sa zadatim brojem po stranici i opcionim filtriranjem po statusu.
+//	@Tags			Orders
+//	@Produce		json
+//	@Param			page			query		int											false	"Broj stranice (počinje od 1)"					default(1)
+//	@Param			size			query		int											false	"Broj naloga po stranici"						default(20)
+//	@Param			filter_status	query		string										false	"Status naloga za filtriranje"					example(pending)
+//	@Success		200				{object}	types.Response{data=controllers.PaginatedOrders}	"Uspešno preuzeta stranica naloga"
+//	@Failure		500				{object}	types.Response								"Greška pri preuzimanju naloga iz baze"
+//	@Router			/orders/paged [get]
+func (oc *OrderController) GetOrdersPaged(c *fiber.Ctx) error {
+	page := c.QueryInt("page", 1)
+	size := c.QueryInt("size", 20)
+	filterStatus := strings.ToLower(c.Query("filter_status", "all"))
+
+	if page < 1 {
+		page = 1
+	}
+	if size < 1 || size > 100 {
+		size = 20
+	}
+	offset := (page - 1) * size
+
+	var totalCount int64
+	query := db.DB.Model(&types.Order{})
+	if filterStatus != "all" {
+		query = query.Where("lower(status) = ?", filterStatus)
+	}
+	if err := query.Count(&totalCount).Error; err != nil {
+		return c.Status(500).JSON(types.Response{
+			Success: false,
+			Error:   "Greška pri brojanju naloga: " + err.Error(),
+		})
+	}
+
+	var ordersList []types.Order
+	if err := query.Offset(offset).Limit(size).Find(&ordersList).Error; err != nil {
+		return c.Status(500).JSON(types.Response{
+			Success: false,
+			Error:   "Greška pri preuzimanju naloga: " + err.Error(),
+		})
+	}
+
+	responses := make([]types.OrderResponse, len(ordersList))
+	for i, order := range ordersList {
+		responses[i] = OrderToOrderResponse(order)
+	}
+
+	return c.JSON(types.Response{
+		Success: true,
+		Data: PaginatedOrders{
+			Orders:     responses,
+			TotalCount: totalCount,
+		},
+	})
+}
+
 // CreateOrder godoc
 //
 //	@Summary		Kreiranje novog naloga
@@ -254,6 +318,10 @@ func (oc *OrderController) CreateOrder(c *fiber.Ctx) error {
 			Success: false,
 			Error:   "Neuspelo kreiranje: " + err.Error(),
 		})
+	}
+
+	if order.Status == "approved" {
+		go orders.MatchOrder(order)
 	}
 
 	if strings.ToLower(order.Direction) == "sell" && order.Status == "approved" {
@@ -561,6 +629,7 @@ func (oc *OrderController) GetRealizedProfit(c *fiber.Ctx) error {
 func InitOrderRoutes(app *fiber.App) {
 	orderController := NewOrderController()
 
+	app.Get("/orders/paged", orderController.GetOrdersPaged)
 	app.Get("/orders/:id", orderController.GetOrderByID)
 	app.Get("/orders", orderController.GetOrders)
 	app.Post("/orders", middlewares.Auth, orderController.CreateOrder)

@@ -105,7 +105,7 @@ type OptionContract struct {
 	IsExercised  bool      `gorm:"default:false"`
 	CreatedAt    int64     `gorm:"autoCreateTime"`
 	ExercisedAt  *int64    `gorm:"default:null"`
-	UID          string    `gorm:"type:varchar(255);uniqueIndex"`
+	UID          string    `gorm:"type:varchar(255);index"`
 	OTCTrade     OTCTrade  `gorm:"foreignKey:OTCTradeID" json:"otc_trade"`
 	Portfolio    Portfolio `gorm:"foreignKey:PortfolioID" json:"portfolio"`
 	// Security   Security  `gorm:"foreignKey:SecurityID"`
@@ -131,4 +131,20 @@ type Exchange struct {
 	Timezone  string `gorm:"not null" json:"timezone,omitempty"`
 	OpenTime  string `gorm:"not null" json:"open_time,omitempty"`
 	CloseTime string `gorm:"not null" json:"close_time,omitempty"`
+}
+
+type OTCSagaPhase int
+
+const (
+	PhaseInit OTCSagaPhase = iota
+	PhaseBuyerReserved
+	PhaseSellerReceived
+	PhaseOwnershipRemoved
+	PhaseOwnershipTransferred
+	PhaseVerified
+)
+
+type OTCSagaState struct {
+	UID   string       `gorm:"primaryKey;not null"`
+	Phase OTCSagaPhase `gorm:"not null"`
 }
