@@ -3,6 +3,7 @@ package controllers
 import (
 	"banka1.com/controllers/orders"
 	"banka1.com/db"
+	"banka1.com/dto"
 	"banka1.com/middlewares"
 	"banka1.com/services"
 	"banka1.com/types"
@@ -101,7 +102,7 @@ func (oc *OrderController) GetOrders(c *fiber.Ctx) error {
 	if "all" == filterStatus {
 		err = db.DB.Find(&ordersList).Error
 	} else {
-		err = db.DB.Find(&ordersList, "status = ?", filterStatus).Error
+		err = db.DB.Find(&ordersList, "lower(status) = ?", filterStatus).Error
 	}
 	if err != nil {
 		return c.Status(400).JSON(types.Response{
@@ -116,6 +117,70 @@ func (oc *OrderController) GetOrders(c *fiber.Ctx) error {
 	return c.JSON(types.Response{
 		Success: true,
 		Data:    responses,
+	})
+}
+
+type PaginatedOrders struct {
+	Orders     []types.OrderResponse `json:"orders"`
+	TotalCount int64                 `json:"totalCount"`
+}
+
+// GetOrdersPaged godoc
+//
+//	@Summary		Preuzimanje paginiranih naloga
+//	@Description	Vraća stranicu naloga sa zadatim brojem po stranici i opcionim filtriranjem po statusu.
+//	@Tags			Orders
+//	@Produce		json
+//	@Param			page			query		int											false	"Broj stranice (počinje od 1)"					default(1)
+//	@Param			size			query		int											false	"Broj naloga po stranici"						default(20)
+//	@Param			filter_status	query		string										false	"Status naloga za filtriranje"					example(pending)
+//	@Success		200				{object}	types.Response{data=controllers.PaginatedOrders}	"Uspešno preuzeta stranica naloga"
+//	@Failure		500				{object}	types.Response								"Greška pri preuzimanju naloga iz baze"
+//	@Router			/orders/paged [get]
+func (oc *OrderController) GetOrdersPaged(c *fiber.Ctx) error {
+	page := c.QueryInt("page", 1)
+	size := c.QueryInt("size", 20)
+	filterStatus := strings.ToLower(c.Query("filter_status", "all"))
+
+	if page < 1 {
+		page = 1
+	}
+	if size < 1 || size > 100 {
+		size = 20
+	}
+	offset := (page - 1) * size
+
+	var totalCount int64
+	query := db.DB.Model(&types.Order{})
+	if filterStatus != "all" {
+		query = query.Where("lower(status) = ?", filterStatus)
+	}
+	if err := query.Count(&totalCount).Error; err != nil {
+		return c.Status(500).JSON(types.Response{
+			Success: false,
+			Error:   "Greška pri brojanju naloga: " + err.Error(),
+		})
+	}
+
+	var ordersList []types.Order
+	if err := query.Offset(offset).Limit(size).Find(&ordersList).Error; err != nil {
+		return c.Status(500).JSON(types.Response{
+			Success: false,
+			Error:   "Greška pri preuzimanju naloga: " + err.Error(),
+		})
+	}
+
+	responses := make([]types.OrderResponse, len(ordersList))
+	for i, order := range ordersList {
+		responses[i] = OrderToOrderResponse(order)
+	}
+
+	return c.JSON(types.Response{
+		Success: true,
+		Data: PaginatedOrders{
+			Orders:     responses,
+			TotalCount: totalCount,
+		},
 	})
 }
 
@@ -254,6 +319,10 @@ func (oc *OrderController) CreateOrder(c *fiber.Ctx) error {
 			Success: false,
 			Error:   "Neuspelo kreiranje: " + err.Error(),
 		})
+	}
+
+	if order.Status == "approved" {
+		go orders.MatchOrder(order)
 	}
 
 	if strings.ToLower(order.Direction) == "sell" && order.Status == "approved" {
@@ -558,9 +627,50 @@ func (oc *OrderController) GetRealizedProfit(c *fiber.Ctx) error {
 	})
 }
 
+// InitiateOrderTransaction godoc
+//
+//	@Summary		Iniciranje transakcije za nalog
+//	@Description	Pokreće inicijalizaciju transfera novca između naloga za izvršavanje matched ordera.
+//	@Tags			Orders
+//	@Accept			json
+//	@Produce		json
+//	@Param			OrderTransactionInitiationDTO	body	dto.OrderTransactionInitiationDTO	true	"Podaci o inicijalizaciji transakcije"
+//	@Success		200	{string}	string	"Uspešno inicirana transakcija"
+//	@Failure		400	{object}	types.Response	"Nevalidan zahtev"
+//	@Failure		500	{object}	types.Response	"Interna greška servera"
+//	@Router			/orders/initiate-transaction [post]
+func (oc *OrderController) InitiateOrderTransaction(c *fiber.Ctx) error {
+	initDto := new(dto.OrderTransactionInitiationDTO)
+	if err := c.BodyParser(initDto); err != nil {
+		return fiber.ErrBadRequest
+	}
+
+	token, err := middlewares.NewOrderTokenDirect(
+		initDto.Uid,
+		initDto.BuyerAccountId,
+		initDto.SellerAccountId,
+		initDto.Amount,
+	)
+	if err != nil {
+		return fiber.ErrInternalServerError
+	}
+
+	url := os.Getenv("BANKING_SERVICE") + "/order/initiate/" + token
+
+	agent := fiber.Post(url)
+	statusCode, _, errs := agent.Bytes()
+
+	if len(errs) != 0 || statusCode != 200 {
+		return fiber.ErrInternalServerError
+	}
+
+	return c.SendStatus(fiber.StatusOK)
+}
+
 func InitOrderRoutes(app *fiber.App) {
 	orderController := NewOrderController()
 
+	app.Get("/orders/paged", orderController.GetOrdersPaged)
 	app.Get("/orders/:id", orderController.GetOrderByID)
 	app.Get("/orders", orderController.GetOrders)
 	app.Post("/orders", middlewares.Auth, orderController.CreateOrder)
@@ -568,4 +678,5 @@ func InitOrderRoutes(app *fiber.App) {
 	app.Post("/orders/:id/approve", middlewares.Auth, middlewares.DepartmentCheck("SUPERVISOR"), orderController.ApproveOrder)
 	app.Post("/orders/:id/cancel", middlewares.Auth, orderController.CancelOrder)
 	app.Get("/profit/:id", orderController.GetRealizedProfit)
+	app.Post("/orders/initiate-transaction", orderController.InitiateOrderTransaction)
 }

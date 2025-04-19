@@ -1,13 +1,12 @@
 package orders
 
 import (
-	"banka1.com/middlewares"
+	"banka1.com/broker"
+	"banka1.com/dto"
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/gofiber/fiber/v2"
 	"math/rand"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -269,7 +268,7 @@ func executePartial(order types.Order, price float64, tx *gorm.DB) int {
 
 	var match types.Order
 	direction := "buy"
-	if order.Direction == "buy" {
+	if strings.ToLower(order.Direction) == "buy" {
 		direction = "sell"
 	} else {
 		direction = "buy"
@@ -294,6 +293,11 @@ func executePartial(order types.Order, price float64, tx *gorm.DB) int {
 		return 0
 	}
 
+	if match.AccountID == 0 {
+		fmt.Println("Matchovani order ima account_id = 0, preskačem ga...")
+		return 0
+	}
+
 	if match.AON {
 		if match.RemainingParts == nil || order.RemainingParts == nil {
 			fmt.Println("AON match bez remaining parts")
@@ -305,9 +309,12 @@ func executePartial(order types.Order, price float64, tx *gorm.DB) int {
 		}
 	}
 
-	if !canPreExecute(match) {
-		fmt.Println("Preskočen match sa nedovoljnim uslovima")
-		return 0
+	// Po specifikaciji, MARKET BUY ne proverava matchov limit
+	if !(strings.ToUpper(order.OrderType) == "MARKET" && strings.ToLower(order.Direction) == "buy") {
+		if !canPreExecute(match) {
+			fmt.Println("Preskočen match sa nedovoljnim uslovima")
+			return 0
+		}
 	}
 
 	marginOrder := order
@@ -346,21 +353,23 @@ func executePartial(order types.Order, price float64, tx *gorm.DB) int {
 		return 0
 	}
 
+	uid := fmt.Sprintf("ORDER-match-%d-%d", order.ID, time.Now().Unix())
 	total := price * float64(matchQty)
 	fee := CalculateFee(order, total)
-	token, err := middlewares.NewOrderToken(order.Direction, order.UserID, order.AccountID, price, fee)
-	if err != nil {
-		fmt.Printf("Greška pri pravljenju tokena za izvršenje ordera %d: %v\n", order.ID, err)
-		return 0
+	initiationDto := dto.OrderTransactionInitiationDTO{
+		Uid:             uid,
+		SellerAccountId: getSellerAccountID(order, match),
+		BuyerAccountId:  getBuyerAccountID(order, match),
+		Amount:          total,
+		Fee:             fee,
+		Direction:       order.Direction,
 	}
 
-	url := fmt.Sprintf("%s/orders/execute/%s", os.Getenv("BANKING_SERVICE"), token)
+	fmt.Println("Šaljem OrderTransactionInitiationDTO preko brokera...")
 
-	agent := fiber.Post(url)
-	statusCode, _, errs := agent.Bytes()
-
-	if len(errs) != 0 || statusCode != 200 {
-		fmt.Printf("Skidanje novca nije uspelo za order %d. Status: %d, Greške: %v\n", order.ID, statusCode, errs)
+	err := broker.SendOrderTransactionInit(&initiationDto)
+	if err != nil {
+		fmt.Printf("Greska pri slanju OrderTransactionInitiationDTO preko brokera: %v\n", err)
 		tx.Rollback()
 		return 0
 	}
@@ -507,13 +516,13 @@ func canPreExecute(order types.Order) bool {
 		return false
 	}
 
-	price := getListingPrice(order)
-	if price < 0 {
-		return false
-	}
 	if strings.ToUpper(order.OrderType) == "LIMIT" {
 		if order.LimitPricePerUnit == nil {
 			fmt.Println("LIMIT order bez LimitPricePerUnit")
+			return false
+		}
+		price := getListingPrice(order)
+		if price < 0 {
 			return false
 		}
 		if order.Direction == "sell" {
@@ -526,6 +535,10 @@ func canPreExecute(order types.Order) bool {
 			fmt.Println("STOP order bez StopPricePerUnit")
 			return false
 		}
+		price := getListingPrice(order)
+		if price < 0 {
+			return false
+		}
 		if order.Direction == "sell" {
 			return price <= *order.StopPricePerUnit
 		} else {
@@ -534,6 +547,10 @@ func canPreExecute(order types.Order) bool {
 	} else if strings.ToUpper(order.OrderType) == "STOP-LIMIT" {
 		if order.LimitPricePerUnit == nil || order.StopPricePerUnit == nil {
 			fmt.Println("STOP-LIMIT order bez neophodnih cena")
+			return false
+		}
+		price := getListingPrice(order)
+		if price < 0 {
 			return false
 		}
 		if order.Direction == "sell" {
@@ -548,14 +565,14 @@ func canPreExecute(order types.Order) bool {
 }
 
 func getBuyerID(a, b types.Order) uint {
-	if a.Direction == "buy" {
+	if strings.ToLower(a.Direction) == "buy" {
 		return a.UserID
 	}
 	return b.UserID
 }
 
 func getSellerID(a, b types.Order) uint {
-	if a.Direction == "sell" {
+	if strings.ToLower(a.Direction) == "sell" {
 		return a.UserID
 	}
 	return b.UserID
@@ -608,7 +625,7 @@ func UpdateAvailableVolumeTx(tx *gorm.DB, securityID uint) error {
 	// Direktno koristi RAW SQL da izbegnemo GORM probleme sa pointerima i imenovanjem
 	query := `
 		SELECT SUM(remaining_parts)
-		FROM orders
+		FROM "order"
 		WHERE security_id = ?
 		  AND lower(direction) = 'sell'
 		  AND lower(status) = 'approved'
@@ -629,4 +646,18 @@ func UpdateAvailableVolumeTx(tx *gorm.DB, securityID uint) error {
 	return tx.Model(&types.Security{}).
 		Where("id = ?", securityID).
 		Update("volume", final).Error
+}
+
+func getBuyerAccountID(a, b types.Order) uint {
+	if strings.ToLower(a.Direction) == "buy" {
+		return a.AccountID
+	}
+	return b.AccountID
+}
+
+func getSellerAccountID(a, b types.Order) uint {
+	if strings.ToLower(a.Direction) == "sell" {
+		return a.AccountID
+	}
+	return b.AccountID
 }

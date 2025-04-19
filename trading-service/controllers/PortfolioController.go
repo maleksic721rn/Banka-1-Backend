@@ -52,7 +52,7 @@ func (sc *PortfolioController) UpdatePublicCount(c *fiber.Ctx) error {
 	}
 
 	var portfolio types.Portfolio
-	if err := db.DB.First(&portfolio, req.PortfolioID).Error; err != nil {
+	if err := db.DB.Preload("Security").First(&portfolio, req.PortfolioID).Error; err != nil {
 		return c.Status(404).JSON(types.Response{
 			Success: false,
 			Error:   "Portfolio not found",
@@ -65,9 +65,16 @@ func (sc *PortfolioController) UpdatePublicCount(c *fiber.Ctx) error {
 			Error:   "Public count cannot be greater than total amount",
 		})
 	}
+	fmt.Printf("Portfolio: %+v\n", portfolio)
+	if portfolio.Security.Type != "Stock" {
+		return c.Status(400).JSON(types.Response{
+			Success: false,
+			Error:   "Hartija od vrednosti mora biti akcija",
+		})
+	}
 
-	if err := db.DB.Model(&portfolio).
-		Update("public_count", req.PublicCount).Error; err != nil {
+	// Izmena u bazi
+	if err := db.DB.Model(&portfolio).Update("public_count", req.PublicCount).Error; err != nil {
 		return c.Status(500).JSON(types.Response{
 			Success: false,
 			Error:   "Failed to update public count: " + err.Error(),

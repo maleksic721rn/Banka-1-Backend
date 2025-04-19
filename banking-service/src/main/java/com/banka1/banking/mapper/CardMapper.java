@@ -6,6 +6,8 @@ import com.banka1.banking.models.AuthorizedPerson;
 import com.banka1.banking.models.Card;
 import org.springframework.stereotype.Component;
 
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.time.Instant;
 import java.util.Calendar;
 import java.util.Date;
@@ -50,7 +52,21 @@ public class CardMapper {
         authorizedPerson.setFirstName(dto.getFirstName());
         authorizedPerson.setLastName(dto.getLastName());
         authorizedPerson.setPhoneNumber(dto.getPhoneNumber());
-        authorizedPerson.setBirthDate(dto.getBirthDate());
+        if (dto.getBirthday() != null) {
+            SimpleDateFormat sdf = new SimpleDateFormat("dd-MM-yyyy");
+            Date date = null;
+            try {
+                date = sdf.parse(dto.getBirthday());
+            } catch (ParseException e) {
+                throw new RuntimeException(e);
+            }
+
+            long timeInMillis = date.getTime();
+            authorizedPerson.setBirthDate(timeInMillis);
+
+        } else {
+            authorizedPerson.setBirthDate(dto.getBirthDate());
+        }
 
         return authorizedPerson;
     }
