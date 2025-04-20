@@ -2,6 +2,8 @@ package com.banka1.banking.services;
 
 import com.banka1.banking.dto.CreateEventDeliveryDTO;
 import com.banka1.banking.dto.interbank.InterbankMessageDTO;
+import com.banka1.banking.dto.interbank.InterbankMessageType;
+import com.banka1.banking.dto.interbank.VoteDTO;
 import com.banka1.banking.dto.interbank.committx.CommitTransactionDTO;
 import com.banka1.banking.dto.interbank.newtx.InterbankTransactionDTO;
 import com.banka1.banking.dto.interbank.rollbacktx.RollbackTransactionDTO;
@@ -46,6 +48,7 @@ public class EventExecutorService {
 
     private RestTemplate getTemplate() {
         RestTemplate restTemplate = new RestTemplate();
+
         restTemplate.setErrorHandler(new ResponseErrorHandler() {
             @Override
             public boolean hasError(ClientHttpResponse response) throws IOException {
@@ -62,44 +65,13 @@ public class EventExecutorService {
     }
 
     private void attemptDelivery(Event event, int attempt) {
+        System.out.println("Attempting delivery for event: " + event.getId() + ", attempt: " + attempt);
         Instant start = Instant.now();
         HttpHeaders headers = new HttpHeaders();
         headers.set("Content-Type", "application/json");
         headers.set("X-Api-Key", ":DDDDDDDDDDDDDDDD");
 
-        ObjectMapper mapper = new ObjectMapper();
-
-        InterbankMessageDTO message = new InterbankMessageDTO();
-        message.setMessageType(event.getMessageType());
-        message.setIdempotenceKey(event.getIdempotenceKey());
-        String messageJson;
-
-        System.out.println(1);
-        try {
-            switch (event.getMessageType()) {
-                case ROLLBACK_TX -> {
-                    System.out.println(event.getPayload());
-                    RollbackTransactionDTO messageBody = mapper.readValue(event.getPayload(), RollbackTransactionDTO.class);
-                    message.setMessage(messageBody);
-                }
-                case COMMIT_TX -> {
-                    CommitTransactionDTO messageBody = mapper.readValue(event.getPayload(), CommitTransactionDTO.class);
-                    message.setMessage(messageBody);
-                }
-                case NEW_TX -> {
-                    InterbankTransactionDTO messageBody = mapper.readValue(event.getPayload(), InterbankTransactionDTO.class);
-                    message.setMessage(messageBody);
-                }
-            }
-            System.out.println(5);
-
-            messageJson = mapper.writeValueAsString(message);
-        } catch (JsonProcessingException e) {
-            eventService.changeEventStatus(event, DeliveryStatus.FAILED);
-            return;
-        }
-
-        HttpEntity<String> entity = new HttpEntity<>(messageJson, headers);
+        HttpEntity<String> entity = new HttpEntity<>(event.getPayload(), headers);
 
         // add body to request
 
@@ -108,8 +80,9 @@ public class EventExecutorService {
         DeliveryStatus status;
 
         try {
-
+            System.out.println("Sending request to: " + event.getUrl());
             ResponseEntity<String> response = getTemplate().postForEntity(event.getUrl(), entity, String.class);
+            System.out.println("Response: " + response.getBody());
             responseBody = response.getBody() != null ? new ObjectMapper().writeValueAsString(response.getBody()) : "";
 
             httpStatus = response.getStatusCodeValue();
@@ -128,6 +101,10 @@ public class EventExecutorService {
             taskScheduler.schedule(() -> attemptDelivery(event, attempt + 1), Instant.now().plus(RETRY_DELAY));
         } else if (status == DeliveryStatus.SUCCESS) {
             eventService.changeEventStatus(event, DeliveryStatus.SUCCESS);
+
+            if (event.getMessageType() == InterbankMessageType.NEW_TX) {
+                handleNewTxSuccess(event, responseBody);
+            }
         } else if (attempt >= MAX_RETRIES) {
             eventService.changeEventStatus(event, DeliveryStatus.CANCELED);
         }
@@ -144,4 +121,16 @@ public class EventExecutorService {
         EventDelivery eventDelivery = eventService.createEventDelivery(createEventDeliveryDTO);
     }
 
+
+    public void handleNewTxSuccess(Event event, String responseBody) {
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            VoteDTO vote = mapper.readValue(responseBody, VoteDTO.class);
+
+
+
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to handle new transaction success: " + e.getMessage());
+        }
+    }
 }

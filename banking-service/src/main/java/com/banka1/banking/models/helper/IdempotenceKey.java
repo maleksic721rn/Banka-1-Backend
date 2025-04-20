@@ -1,5 +1,7 @@
 package com.banka1.banking.models.helper;
 
+import jakarta.persistence.AttributeOverride;
+import jakarta.persistence.AttributeOverrides;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
 import lombok.AllArgsConstructor;
@@ -10,6 +12,10 @@ import lombok.Setter;
 @Getter
 @Embeddable
 @AllArgsConstructor
+@AttributeOverrides({
+        @AttributeOverride(name = "routingNumber", column = @Column(name = "routing_number")),
+        @AttributeOverride(name = "locallyGeneratedKey", column = @Column(name = "locally_generated_key"))
+})
 public class IdempotenceKey {
 
     private Integer routingNumber;

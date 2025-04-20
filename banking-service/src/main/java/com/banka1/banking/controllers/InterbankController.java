@@ -24,6 +24,7 @@ public class InterbankController {
 
     @PostMapping
     public ResponseEntity<?> receiveWebhook(HttpServletRequest request) throws IOException {
+        System.out.println("Received webhook request");
         String rawPayload = request.getReader().lines().collect(Collectors.joining(System.lineSeparator()));
 
         ObjectMapper mapper = new ObjectMapper();

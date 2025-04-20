@@ -50,8 +50,10 @@ public class TransferService {
     private final BankAccountUtils bankAccountUtils;
     private final ReceiverService receiverService;
 
+    private final InterbankService interbankService;
 
-    public TransferService(AccountRepository accountRepository, TransferRepository transferRepository, TransactionRepository transactionRepository, CurrencyRepository currencyRepository, JmsTemplate jmsTemplate, MessageHelper messageHelper, @Value("${destination.email}") String destinationEmail, UserServiceCustomer userServiceCustomer, ExchangeService exchangeService, OtpTokenService otpTokenService, BankAccountUtils bankAccountUtils, ReceiverService receiverService) {
+
+    public TransferService(AccountRepository accountRepository, TransferRepository transferRepository, TransactionRepository transactionRepository, CurrencyRepository currencyRepository, JmsTemplate jmsTemplate, MessageHelper messageHelper, @Value("${destination.email}") String destinationEmail, UserServiceCustomer userServiceCustomer, ExchangeService exchangeService, OtpTokenService otpTokenService, BankAccountUtils bankAccountUtils, ReceiverService receiverService, InterbankService interbankService) {
         this.accountRepository = accountRepository;
         this.transferRepository = transferRepository;
         this.transactionRepository = transactionRepository;
@@ -64,6 +66,7 @@ public class TransferService {
         this.otpTokenService = otpTokenService;
         this.bankAccountUtils = bankAccountUtils;
         this.receiverService = receiverService;
+        this.interbankService = interbankService;
     }
 
     @Transactional(isolation = Isolation.SERIALIZABLE)
@@ -73,6 +76,7 @@ public class TransferService {
 
         System.out.println("Transfer type: " + transfer.getType());
         return switch (transfer.getType()) {
+            case FOREIGN_BANK -> processForeignBankTransfer(transferId);
             case INTERNAL, EXCHANGE -> processInternalTransfer(transferId);
             case EXTERNAL, FOREIGN -> processExternalTransfer(transferId);
             default -> throw new RuntimeException("Invalid transfer type");
@@ -501,6 +505,70 @@ public class TransferService {
 
 
     @Transactional
+    public String processForeignBankTransfer(Long transferId) {
+        Transfer transfer = transferRepository.findById(transferId)
+                .orElseThrow(() -> new RuntimeException("Transfer not found"));
+
+        if (!transfer.getStatus().equals(TransferStatus.PENDING)) {
+            throw new RuntimeException("Transfer is not in pending state");
+        }
+
+        if (!transfer.getType().equals(TransferType.FOREIGN_BANK)) {
+            throw new RuntimeException("Invalid transfer type for this process");
+        }
+
+        Account fromAccount = transfer.getFromAccountId();
+        Double amount = transfer.getAmount();
+
+        if (fromAccount.getBalance() < amount) {
+            transfer.setStatus(TransferStatus.FAILED);
+            transfer.setNote("Insufficient balance");
+            transferRepository.save(transfer);
+            throw new RuntimeException("Insufficient balance for transfer");
+        }
+
+        try {
+            fromAccount.setBalance(fromAccount.getBalance() - amount);
+            fromAccount.setReservedBalance(fromAccount.getReservedBalance() + amount);
+
+            accountRepository.save(fromAccount);
+
+//            Transaction debitTransaction = new Transaction();
+//            debitTransaction.setFromAccountId(fromAccount);
+//            debitTransaction.setToAccountId(null);
+//            debitTransaction.setAmount(amount);
+//            debitTransaction.setCurrency(transfer.getFromCurrency());
+//
+//            debitTransaction.setFee(0.0);
+//            debitTransaction.setFinalAmount(transfer.getAmount());
+//
+//            debitTransaction.setTimestamp(Instant.now().toEpochMilli());
+//            debitTransaction.setDescription("Debit transaction for transfer " + transfer.getId());
+//            debitTransaction.setTransfer(transfer);
+//            transactionRepository.save(debitTransaction);
+
+            interbankService.sendNewTXMessage(transfer);
+
+            transfer.setStatus(TransferStatus.RESERVED);
+            transfer.setCompletedAt(Instant.now().toEpochMilli());
+            transferRepository.save(transfer);
+
+            //Inkrementiranje transakcije za fast payment opciju
+            if(transfer.getSavedReceiverId() != null)
+                receiverService.incrementUsage(transfer.getSavedReceiverId());
+
+            return "Transfer reserved successfully";
+        } catch (Exception e) {
+            transfer.setStatus(TransferStatus.FAILED);
+            transfer.setNote("Error during processing: " + e.getMessage());
+            log.error(e.getMessage());
+            transferRepository.save(transfer);
+            throw new RuntimeException("Transfer processing failed", e);
+        }
+    }
+
+
+    @Transactional
     public String processInternalTransfer(Long transferId) {
         Transfer transfer = transferRepository.findById(transferId).orElseThrow(() -> new RuntimeException("Transfer not found"));
 
@@ -668,12 +736,12 @@ public class TransferService {
         Optional<Account> fromAccountOtp = accountRepository.findByAccountNumber(transferDTO.getFromAccountNumber());
         Optional<Account> toAccountOtp = accountRepository.findByAccountNumber(transferDTO.getRecipientAccount());
 
-        if(fromAccountOtp.isEmpty() || toAccountOtp.isEmpty()){
+        // receiver account is null and should not be checked if it is not in our bank
+        if(fromAccountOtp.isEmpty() || (toAccountOtp.isEmpty() && transferDTO.getRecipientAccount().startsWith("111"))){
             return false;
         }
 
         Account fromAccount = fromAccountOtp.get();
-        Account toAccount = toAccountOtp.get();
 
         if(transferDTO.getAmount() <= 0){
             return false;
@@ -688,7 +756,12 @@ public class TransferService {
             }
         }
 
-        return !fromAccount.getOwnerID().equals(toAccount.getOwnerID());
+        if (!toAccountOtp.isEmpty()) {
+            Account toAccount = toAccountOtp.get();
+            return !fromAccount.getOwnerID().equals(toAccount.getOwnerID());
+        }
+
+        return true;
     }
 
     public Transfer createInternalTransferEntity(Account fromAccount, Account toAccount,InternalTransferDTO internalTransferDTO, CustomerDTO customerData, String description) {
