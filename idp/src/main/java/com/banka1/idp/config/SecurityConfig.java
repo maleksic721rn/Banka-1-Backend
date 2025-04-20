@@ -80,7 +80,7 @@ public class SecurityConfig {
         return keyPair;
     }
 
-    private static void getClaims(JwtEncodingContext context) {
+    private static void getAccessTokenClaims(JwtEncodingContext context) {
         context.getClaims()
                 .claims(
                         (claims) -> {
@@ -160,11 +160,6 @@ public class SecurityConfig {
                             fl.loginPage(loginUrl);
                             fl.loginProcessingUrl("/api/idp/login");
                             fl.usernameParameter("email");
-                            fl.failureHandler(
-                                    (req, res, ex) -> {
-                                        res.setStatus(401);
-                                        res.getWriter().write("Invalid credentials");
-                                    });
                         });
         return http.build();
     }
@@ -228,14 +223,41 @@ public class SecurityConfig {
                         .scope("profile")
                         .tokenSettings(tokenSettings)
                         .build();
-        return new InMemoryRegisteredClientRepository(oidcClient, publicClient, gatewayClient);
+        RegisteredClient tradingServiceClient =
+                RegisteredClient.withId(UUID.randomUUID().toString())
+                        .clientId("trading-service-client")
+                        .clientSecret("{noop}verysecuresecretmuchwow")
+                        .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
+                        .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
+                        .scope("openid")
+                        .scope("email")
+                        .scope("profile")
+                        .tokenSettings(
+                                TokenSettings.builder()
+                                        .accessTokenTimeToLive(Duration.ofMinutes(15))
+                                        .build())
+                        .build();
+        return new InMemoryRegisteredClientRepository(oidcClient, publicClient, gatewayClient, tradingServiceClient);
     }
 
     @Bean
     OAuth2TokenCustomizer<JwtEncodingContext> jwtTokenCustomizer() {
         return (context) -> {
             if (OAuth2TokenType.ACCESS_TOKEN.equals(context.getTokenType())) {
-                getClaims(context);
+                getAccessTokenClaims(context);
+            } else if (new OAuth2TokenType("id_token").equals(context.getTokenType())) {
+                context.getClaims()
+                        .claims(
+                                (claims) -> {
+                                    if ((context.getPrincipal().getPrincipal() instanceof User u)) {
+                                        claims.put("sub", u.getEmail());
+                                        claims.put("email", u.getEmail());
+                                        claims.put(
+                                                "name", u.getFirstName() + " " + u.getLastName());
+                                        claims.put("family_name", u.getLastName());
+                                        claims.put("given_name", u.getFirstName());
+                                    }
+                                });
             }
         };
     }
@@ -276,7 +298,8 @@ public class SecurityConfig {
     Function<OidcUserInfoAuthenticationContext, OidcUserInfo> userInfoMapper() {
         return (context) -> {
             OidcUserInfoAuthenticationToken authentication = context.getAuthentication();
-            return authentication.getUserInfo();
+            var token = (JwtAuthenticationToken) authentication.getPrincipal();
+            return new OidcUserInfo(token.getToken().getClaims());
         };
     }
 
@@ -300,10 +323,9 @@ public class SecurityConfig {
 
     /**
      * Configures the token settings to set the refresh token time to live to 1 day and to create a
-     * new refresh token on use.
-     * Will be used in production.
-     * However, React Strict Mode runs every request to run twice which, when the token needs to be refreshed,
-     * will lead to errors. So, in development, refresh token rotation will be disabled.
+     * new refresh token on use. Will be used in production. However, React Strict Mode runs every
+     * request to run twice which, when the token needs to be refreshed, will lead to errors. So, in
+     * development, refresh token rotation will be disabled.
      */
     @Bean
     TokenSettings tokenSettings() {
@@ -314,23 +336,20 @@ public class SecurityConfig {
                 .build();
     }
 
-
-
     /**
-     * Configures and provides token settings specifically for the development profile.
-     * Sets the refresh token time-to-live to 1 day and enables the reuse of refresh tokens.
-     * Additionally, configures the access token time-to-live to 30 seconds; this causes the Gateway to
-     * refresh tokens on every request.
-     * See above for the rationale.
+     * Configures and provides token settings specifically for the development profile. Sets the
+     * refresh token time-to-live to 1 day and enables the reuse of refresh tokens. Additionally,
+     * configures the access token time-to-live to 30 seconds; this causes the Gateway to refresh
+     * tokens on every request. See above for the rationale.
      */
     @Bean
     @Profile("dev")
     @Primary
     TokenSettings devTokenSettings() {
         return TokenSettings.builder()
-                            .refreshTokenTimeToLive(Duration.ofDays(1))
-                            .reuseRefreshTokens(true)
-                            .accessTokenTimeToLive(Duration.ofSeconds(30))
-                            .build();
+                .refreshTokenTimeToLive(Duration.ofDays(1))
+                .reuseRefreshTokens(true)
+                .accessTokenTimeToLive(Duration.ofSeconds(30))
+                .build();
     }
 }
