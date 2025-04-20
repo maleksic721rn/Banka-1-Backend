@@ -36,10 +36,16 @@ func jwtSuccessHandler(c *fiber.Ctx) error {
 
 	// Extract claims
 	claims := token.Claims.(jwt.MapClaims)
-	resourceAccess := claims["resource_access"].(map[string]interface{})
+
 	// Store claims in context for use in protected routes
 	c.Locals("token", token.Raw)
 	c.Locals("claims", claims)
+	untyped := claims["resource_access"]
+	// Tests will fail if this doesn't exist
+	if untyped == nil {
+		return c.Next()
+	}
+	resourceAccess := untyped.(map[string]interface{})
 	c.Locals("user_id", resourceAccess["id"])
 	c.Locals("position", resourceAccess["position"])
 	c.Locals("department", resourceAccess["department"])
