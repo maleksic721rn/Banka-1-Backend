@@ -2,6 +2,7 @@ package middlewares
 
 import (
 	"fmt"
+	"github.com/gofiber/fiber/v2/log"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -27,6 +28,7 @@ func DepartmentCheck(requiredDept string) fiber.Handler {
 }
 
 func RequirePermission(requiredPermission string) fiber.Handler {
+	log.Infof("Checking for permission: %s", requiredPermission)
 	return func(c *fiber.Ctx) error {
 		permissions, ok := c.Locals("permissions").([]interface{})
 		if !ok {
@@ -35,13 +37,16 @@ func RequirePermission(requiredPermission string) fiber.Handler {
 				"error":   "Unauthorized: No permissions found",
 			})
 		}
+		log.Infof("Permissions found: %v", permissions)
 
 		for _, perm := range permissions {
+			log.Infof("Checking permission: %v", perm)
 			if strPerm, ok := perm.(string); ok && strPerm == requiredPermission {
+				log.Infof("Permission '%s' granted", requiredPermission)
 				return c.Next()
 			}
 		}
-
+		log.Infof("Permission '%s' denied", requiredPermission)
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"success": false,
 			"error":   fmt.Sprintf("Unauthorized: Missing permission '%s'", requiredPermission),

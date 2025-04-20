@@ -97,7 +97,10 @@ VALUES (101, 'customer', 'Marko', 'Marković', 'marko.markovic@banka.com', 'okra
 
 -- Permissions for Marko
 INSERT INTO user_permissions (user_id, permission)
-VALUES (101, 'READ_EMPLOYEE');
+SELECT 101
+     , unnest(ARRAY [
+    'READ_EMPLOYEE', 'OTC_TRADING'
+    ]);
 
 -- Customer 2: Anastasija password: Anastas12345
 INSERT INTO "user" (id, user_type, first_name, last_name, email, username, phone_number,

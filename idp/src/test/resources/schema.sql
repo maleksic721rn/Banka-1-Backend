@@ -51,6 +51,27 @@ ALTER TABLE user_permissions
     ADD CONSTRAINT fk_user_permissions_on_customer FOREIGN KEY (user_id) REFERENCES "user" (id);
 
 
+ALTER TABLE user_permissions
+    ADD CONSTRAINT customer_permissions_permission_check
+        CHECK ((permission)::text = ANY (
+            ARRAY[
+                'CREATE_EMPLOYEE',
+                'EDIT_EMPLOYEE',
+                'DELETE_EMPLOYEE',
+                'LIST_EMPLOYEE',
+                'READ_EMPLOYEE',
+                'SET_EMPLOYEE_PERMISSION',
+                'CREATE_CUSTOMER',
+                'EDIT_CUSTOMER',
+                'DELETE_CUSTOMER',
+                'LIST_CUSTOMER',
+                'READ_CUSTOMER',
+                'SET_CUSTOMER_PERMISSION',
+                'OTC_TRADING'
+                ]
+            ));
+
+
 create table if not exists reset_password
 (
     type            integer      not null,
