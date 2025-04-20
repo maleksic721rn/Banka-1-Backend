@@ -8,5 +8,6 @@ include(
     "trading-service",
     "support-service",
     "idp",
-    "gateway"
+    "gateway",
+    "test-support",
 )

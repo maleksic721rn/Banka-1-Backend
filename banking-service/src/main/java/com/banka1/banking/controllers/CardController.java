@@ -108,7 +108,7 @@ public class CardController {
         )
     })
 //    @CardAuthorization
-    @PreAuthorize("@accountSecurity.isAccountOwner(#accountId, authentication.id) or authentication.isAdmin or authentication.isEmployed")
+    @PreAuthorize("@accountSecurity.isAccountOwner(#accountId, authentication.userId) or authentication.isAdmin or authentication.isEmployed")
     public ResponseEntity<?> getCardsByAccountID(@PathVariable("account_id") int accountId) {
         return getCards(accountId);
     }
@@ -145,7 +145,7 @@ public class CardController {
         )
     })
 //    @CardAuthorization
-    @PreAuthorize("@accountSecurity.isAccountOwner(#createCardDTO.accountID, authentication.id) or authentication.isAdmin or authentication.isEmployed")
+    @PreAuthorize("@accountSecurity.isAccountOwner(#createCardDTO.accountID, authentication.userId) or authentication.isAdmin or authentication.isEmployed")
     public ResponseEntity<?> createCard(@RequestBody CreateCardDTO createCardDTO) {
         try {
             Card card = cardService.createCard(createCardDTO);
@@ -334,7 +334,7 @@ public class CardController {
         )
     })
 //    @CardAuthorization
-    @PreAuthorize("@cardSecurity.isCardOwner(#cardId, authentication.id) or authentication.isAdmin or authentication.isEmployed")
+    @PreAuthorize("@cardSecurity.isCardOwner(#cardId, authentication.userId) or authentication.isAdmin or authentication.isEmployed")
     public ResponseEntity<?> updateCardLimit(@PathVariable("card_id") Long cardId, @RequestBody UpdateCardLimitDTO updateCardLimitDTO) {
         try {
             cardService.updateCardLimit(cardId, updateCardLimitDTO);
@@ -368,7 +368,7 @@ public class CardController {
         )
     })
 //    @CardAuthorization
-    @PreAuthorize("@cardSecurity.isCardOwner(#cardId, authentication.id) or authentication.isAdmin or authentication.isEmployed")
+    @PreAuthorize("@cardSecurity.isCardOwner(#cardId, authentication.userId) or authentication.isAdmin or authentication.isEmployed")
     public ResponseEntity<?> updateCardName(@PathVariable("card_id") Long cardId, @RequestBody UpdateCardNameDTO updateCardNameDTO) {
         try {
             cardService.updateCardName(cardId, updateCardNameDTO);
