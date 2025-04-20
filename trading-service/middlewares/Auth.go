@@ -7,46 +7,7 @@ import (
 )
 
 func Auth(c *fiber.Ctx) error {
-	auth := c.Get("Authorization")
-	if auth == "" {
-		return c.Status(401).JSON(fiber.Map{
-			"error":   "Unauthorized - No token provided",
-			"success": false,
-		})
-	}
-
-	// remove Bearer from token
-	token := auth[7:]
-	if token == "" {
-		return c.Status(401).JSON(fiber.Map{
-			"error":   "Unauthorized - No token provided",
-			"success": false,
-		})
-	}
-
-	_, claims, err := readToken(token)
-	if err != nil {
-		fmt.Println(err)
-		return c.Status(401).JSON(fiber.Map{
-			"error":   "Unauthorized - Invalid token",
-			"success": false,
-		})
-	}
-
-	fmt.Println(claims)
-
-	fmt.Println("token: ", token)
-
-	c.Locals("token", token)
-
-	c.Locals("claims", claims)
-	c.Locals("user_id", claims["id"])
-	c.Locals("position", claims["position"])
-	c.Locals("department", claims["department"])
-	c.Locals("permissions", claims["permissions"])
-	c.Locals("is_admin", claims["isAdmin"])
-	c.Locals("is_employed", claims["isEmployed"])
-	return c.Next()
+	return JWTMiddleware(c)
 }
 
 func DepartmentCheck(requiredDept string) fiber.Handler {

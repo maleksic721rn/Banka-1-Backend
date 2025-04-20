@@ -1,55 +1,53 @@
 package middlewares
 
 import (
-	"encoding/base64"
-	"fmt"
-	"os"
-
-	"github.com/dgrijalva/jwt-go"
-	// "strings"
+	"banka1.com/controllers/orders"
+	jwtware "github.com/gofiber/contrib/jwt"
+	"github.com/gofiber/fiber/v2"
+	"github.com/golang-jwt/jwt/v5"
 )
 
-func keyFunc(token *jwt.Token) (interface{}, error) {
-	return getSigningKey()
+// JWTMiddleware returns a JWT middleware using JWKS for key retrieval
+func JWTMiddleware(c *fiber.Ctx) error {
+	return jwtware.New(jwtware.Config{
+		Filter:         nil,
+		SuccessHandler: jwtSuccessHandler,
+		ErrorHandler:   jwtErrorHandler,
+		JWKSetURLs:     []string{"https://idp.localhost/.well-known/o/oauth2/jwks"},
+	})(c)
 }
 
-func getSigningKey() ([]byte, error) {
-	secret := os.Getenv("JWT_SECRET") // Preuzimanje tajnog ključa iz env
-	decodedKey, err := base64.StdEncoding.DecodeString(secret)
-	if err != nil {
-		return nil, err
-	}
-	return decodedKey, nil
+// jwtSuccessHandler handles successful JWT validation
+func jwtSuccessHandler(c *fiber.Ctx) error {
+	// Get the token from context
+	token := c.Locals("user").(*jwt.Token)
+
+	// Extract claims
+	claims := token.Claims.(jwt.MapClaims)
+
+	// Store claims in context for use in protected routes
+	c.Locals("token", token.Raw)
+	c.Locals("claims", claims)
+	c.Locals("user_id", claims["id"])
+	c.Locals("position", claims["position"])
+	c.Locals("department", claims["department"])
+	c.Locals("permissions", claims["permissions"])
+	c.Locals("is_admin", claims["isAdmin"])
+	c.Locals("is_employed", claims["isEmployed"])
+
+	return c.Next()
 }
 
-func readToken(tokenString string) (*jwt.Token, jwt.MapClaims, error) {
-	claims := jwt.MapClaims{}
-	token, err := jwt.ParseWithClaims(tokenString, claims, keyFunc)
-	if err != nil {
-		return nil, claims, err
-	}
-	return token, claims, nil
+// jwtErrorHandler handles JWT validation errors
+func jwtErrorHandler(c *fiber.Ctx, err error) error {
+	return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+		"error":   "Unauthorized - " + err.Error(),
+		"success": false,
+	})
 }
 
-func NewOrderToken(direction string, userID uint, accountID uint, amount float64, fee float64) (string, error) {
-	key, err := getSigningKey()
-	if err != nil {
-		return "", err
-	}
-
-	tokenString, err := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"direction": direction,
-		"userId":    userID,
-		"accountId": accountID,
-		"amount":    fmt.Sprintf("%f", amount),
-		"fee":       fmt.Sprintf("%f", fee),
-	}).SignedString(key)
-
-	if err != nil {
-		return "", err
-	}
-
-	return tokenString, nil
+func GenerateToken(req interface{}) (*interface{}, *interface{}) {
+	return nil, nil
 }
 
 func NewOrderTokenDirect(uid string, buyerAccountId uint, sellerAccountId uint, amount float64) (string, error) {
