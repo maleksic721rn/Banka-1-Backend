@@ -14,7 +14,6 @@ import com.banka1.user.mapper.CustomerMapper;
 import com.banka1.user.model.Customer;
 import com.banka1.user.model.helper.Gender;
 import com.banka1.user.service.CustomerService;
-import com.banka1.user.service.AuthService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
@@ -45,8 +44,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class CustomerControllerTest {
 
     private MockMvc mockMvc;
-    @Mock
-    private AuthService authService;
 
     @Mock
     private Claims claims;
@@ -92,7 +89,6 @@ class CustomerControllerTest {
 
         when(customerService.createCustomer(any(CreateCustomerRequest.class), anyLong())).thenReturn(customer);
 
-        when(authService.parseToken(any())).thenReturn(claims);
 
         mockMvc.perform(post("/api/customer")
                         .contentType(MediaType.APPLICATION_JSON)

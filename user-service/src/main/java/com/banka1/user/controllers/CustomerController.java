@@ -5,9 +5,9 @@ import com.banka1.user.DTO.request.CreateCustomerRequest;
 import com.banka1.user.DTO.request.UpdateCustomerRequest;
 import com.banka1.user.DTO.request.UpdatePermissionsRequest;
 import com.banka1.user.model.Customer;
-
 import com.banka1.user.service.CustomerService;
 import com.banka1.user.utils.ResponseTemplate;
+
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -15,6 +15,7 @@ import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
@@ -81,7 +82,7 @@ public class CustomerController {
     @PreAuthorize("hasRole('READ_CUSTOMER') or authentication.userId == #id or authentication.isAdmin")
     public ResponseEntity<?> getById(
             @Parameter(required = true, example = "1")
-            @PathVariable String id
+            @PathVariable Long id
     ) {
         try {
             var customer = customerService.findById(id);
