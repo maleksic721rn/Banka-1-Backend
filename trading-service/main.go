@@ -55,7 +55,7 @@ func main() {
 		TokenURL:     os.Getenv("TOKEN_ENDPOINT"),
 		ClientID:     os.Getenv("CLIENT_ID"),
 		ClientSecret: os.Getenv("CLIENT_SECRET"),
-		Scopes:       []string{"openid", "profile", "email"},
+		Scopes:       []string{"openid", "profile", "email", "trading-service"},
 	}
 	services.GetOAuthService().Initialize(oauthConfig)
 
