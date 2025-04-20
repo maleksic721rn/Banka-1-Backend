@@ -295,7 +295,7 @@ public class EmployeeController {
     }
 
     @GetMapping("/actuaries")
-    @PreAuthorize("hasRole('READ_EMPLOYEE') or authentication.isAdmin")
+    @PreAuthorize("hasRole('READ_EMPLOYEE') or authentication.isAdmin or hasAuthority('SCOPE_trading-service')")
     public ResponseEntity<?> fetchActuaries(){
         var employees = employeeService.getAllActuaries();
         return ResponseTemplate.create(ResponseEntity.status(HttpStatus.OK), true, employees, null);

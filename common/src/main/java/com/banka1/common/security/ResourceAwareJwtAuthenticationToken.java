@@ -3,6 +3,7 @@ package com.banka1.common.security;
 import com.banka1.common.security.annotation.UserClaim;
 import lombok.Getter;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.core.CredentialsContainer;
 import org.springframework.security.core.GrantedAuthority;
@@ -12,6 +13,7 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import java.util.Collection;
 import java.util.Map;
 
+@Slf4j
 public final class ResourceAwareJwtAuthenticationToken extends AbstractAuthenticationToken {
 
     private final JwtAuthenticationToken delegate;
