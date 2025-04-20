@@ -76,7 +76,7 @@ public class ReceiverController {
     })
     @GetMapping("/{customerId}")
 //    @ReceiverAuthorization
-    @PreAuthorize("authentication.id == #customerId or authentication.isEmployed or authentication.isAdmin")
+    @PreAuthorize("authentication.userId == #customerId or authentication.isEmployed or authentication.isAdmin")
     public ResponseEntity<?> getReceivers(
             @Parameter(description = "ID korisnika", required = true, example = "2")
             @PathVariable Long customerId) {

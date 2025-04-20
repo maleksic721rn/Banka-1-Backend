@@ -2,8 +2,13 @@ package com.banka1.banking.cucumber.steps;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import java.util.HashMap;
-import java.util.Map;
+import com.banka1.testing.jwt.JwtTestUtils;
+
+import io.cucumber.java.Before;
+import io.cucumber.java.en.And;
+import io.cucumber.java.en.Given;
+import io.cucumber.java.en.Then;
+import io.cucumber.java.en.When;
 
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.HttpEntity;
@@ -14,14 +19,11 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.web.client.HttpStatusCodeException;
-import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
-import io.cucumber.java.Before;
-import io.cucumber.java.en.And;
-import io.cucumber.java.en.Given;
-import io.cucumber.java.en.Then;
-import io.cucumber.java.en.When;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class CardSteps {
 
@@ -46,21 +48,15 @@ public class CardSteps {
         return "http://localhost:" + port;
     }
 
-    @SuppressWarnings({ "unchecked" })
     @Given("customer is logged into the banking portal for cards")
     public void customerIsLoggedIntoBankingPortalForCards() {
-        Map<String, String> loginData = new HashMap<>();
-        loginData.put("email", "marko.markovic@banka.com");
-        loginData.put("password", "M@rko12345");
-
         try {
-            ResponseEntity<Map> response = restTemplate.postForEntity(
-                    "http://localhost:8081/api/auth/login", loginData, Map.class);
+            // Use the test support module to generate a token
+            token = JwtTestUtils.generateCustomerToken("marko.markovic@banka.com", 101L, List.of("READ_CUSTOMER"));
 
-            token = (String) ((Map<String, Object>) response.getBody().get("data")).get("token");
-            assertNotNull(token, "Token should be generated during login");
-            System.out.println("Customer authenticated with token length: " + token.length());
-        } catch (RestClientException e) {
+            assertNotNull(token, "Token should be generated during employee login");
+            System.out.println("Employee authenticated with token length: " + token.length());
+        } catch (Exception e) {
             fail("Login failed: " + e.getMessage());
         }
     }
@@ -73,7 +69,7 @@ public class CardSteps {
     @When("customer fills out the card form")
     public void customerFillsOutTheCardForm() {
         cardData = new HashMap<>();
-        cardData.put("accountID", 106);
+        cardData.put("accountID", 10);
         cardData.put("cardBrand", "VISA");
         cardData.put("cardType", "DEBIT");
         cardData.put("authorizedPerson", null);
