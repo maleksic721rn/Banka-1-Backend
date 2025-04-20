@@ -229,9 +229,11 @@ public class SecurityConfig {
                         .clientSecret("{noop}verysecuresecretmuchwow")
                         .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
                         .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
+                        .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
                         .scope("openid")
                         .scope("email")
                         .scope("profile")
+                        .scope("trading-service")
                         .tokenSettings(
                                 TokenSettings.builder()
                                         .accessTokenTimeToLive(Duration.ofMinutes(15))
