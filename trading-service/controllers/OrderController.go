@@ -667,19 +667,15 @@ func (oc *OrderController) InitiateOrderTransaction(c *fiber.Ctx) error {
 		return fiber.ErrBadRequest
 	}
 
-	token, err := middlewares.NewOrderTokenDirect(
-		initDto.Uid,
-		initDto.BuyerAccountId,
-		initDto.SellerAccountId,
-		initDto.Amount,
-	)
+	url := os.Getenv("BANKING_SERVICE") + "/order/initiate/"
+
+	authHeader, err := services.GetOAuthService().GetAuthorizationHeader()
+
 	if err != nil {
 		return fiber.ErrInternalServerError
 	}
-
-	url := os.Getenv("BANKING_SERVICE") + "/order/initiate/" + token
-
 	agent := fiber.Post(url)
+	agent.Request().Header.Add("Authorization", authHeader)
 	statusCode, _, errs := agent.Bytes()
 
 	if len(errs) != 0 || statusCode != 200 {

@@ -9,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -22,8 +23,9 @@ public class OrderController {
 
 	public record OrderDTO(String direction, Long accountId, Long userId, Double amount, Double fee) {}
 
-    @PostMapping("/execute/{order}")
-    public ResponseEntity<?> executeOrder(@PathVariable OrderDTO order) {
+    @PostMapping("/execute/")
+//    @PreAuthorize("hasAuthority('SCOPE_trading-service')")
+    public ResponseEntity<?> executeOrder(@RequestBody OrderDTO order) {
         try {
             String direction = order.direction;
             Long accountId = order.accountId;
@@ -47,8 +49,9 @@ public class OrderController {
 	
 	public record InitiationDTO(String uid, Long buyerAccountId, Long sellerAccountId, Double amount) {}
 
-    @PostMapping("/initiate/{initiationDto}")
-    public ResponseEntity<?> initiateOrderTransaction(@PathVariable InitiationDTO initiationDto) {
+    @PostMapping("/initiate/")
+//    @PreAuthorize("hasAuthority('SCOPE_trading-service')")
+    public ResponseEntity<?> initiateOrderTransaction(@RequestBody InitiationDTO initiationDto) {
         try {
             String uid = initiationDto.uid;
             Long buyerAccountId = initiationDto.buyerAccountId;

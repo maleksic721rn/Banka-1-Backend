@@ -1,6 +1,7 @@
 package main
 
 import (
+	"banka1.com/exchanges"
 	"banka1.com/listings/forex"
 	"banka1.com/listings/futures"
 	"banka1.com/listings/option"
@@ -33,8 +34,8 @@ import (
 	"log"
 )
 
-//	@title			Trading Service
-//	@version		1.0
+//	@title	Trading Service
+//	@version	1.0
 //	@description	Trading Service API
 
 // @securityDefinitions.apikey	BearerAuth

@@ -50,21 +50,5 @@ func GenerateToken(req interface{}) (*interface{}, *interface{}) {
 }
 
 func NewOrderTokenDirect(uid string, buyerAccountId uint, sellerAccountId uint, amount float64) (string, error) {
-	key, err := getSigningKey()
-	if err != nil {
-		return "", err
-	}
-
-	tokenString, err := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"uid":             uid,
-		"buyerAccountId":  buyerAccountId,
-		"sellerAccountId": sellerAccountId,
-		"amount":          fmt.Sprintf("%f", amount),
-	}).SignedString(key)
-
-	if err != nil {
-		return "", err
-	}
-
-	return tokenString, nil
+	return "", nil
 }
