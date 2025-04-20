@@ -26,6 +26,13 @@ spring:
             filters:
               - RewritePath=/api/trading/(?<segment>.*), /$\{segment}
               - TokenRelay=
+          - id: support-service
+            uri: http://localhost:8000
+            predicates:
+              - Path=/api/support/**
+            filters:
+              - RewritePath=/api/support/(?<segment>.*), /$\{segment}
+              - TokenRelay=
   security:
     oauth2:
       client:
