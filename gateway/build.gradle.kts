@@ -20,6 +20,8 @@ repositories {
 extra["springCloudVersion"] = "2024.0.1"
 
 dependencies {
+	developmentOnly("org.springframework.boot:spring-boot-devtools")
+
 	implementation("org.springframework.boot:spring-boot-starter-oauth2-client")
 	implementation("org.springframework.boot:spring-boot-starter-security")
 	implementation("org.springframework.cloud:spring-cloud-starter-gateway-mvc")
