@@ -241,16 +241,6 @@ func assignOwnership(uid string) error {
 			return fmt.Errorf("Neuspešno pronalaženje ugovora: %w", err)
 		}
 
-		/*
-		buyerPortfolio := types.Portfolio{
-			UserID:        contract.BuyerID,
-			SecurityID:    contract.SecurityID,
-			Quantity:      contract.Quantity,
-			PurchasePrice: contract.StrikePrice,
-			PublicCount:   0,
-		}
-		*/
-
 		var portfolio types.Portfolio
 		err := tx.Where("user_id = ? AND security_id = ?", contract.BuyerID, contract.SecurityID).First(&portfolio).Error
 
