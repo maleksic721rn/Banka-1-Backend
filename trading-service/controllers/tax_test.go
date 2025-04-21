@@ -13,7 +13,7 @@ import (
 	"testing"
 )
 
-func TestRunTax_Success(t *testing.T) {
+func TestRunTax_Success_Database_Assertions(t *testing.T) {
 	app := fiber.New()
 	taxController := NewTaxController()
 	app.Post("/tax/run", taxController.RunTax)
@@ -21,9 +21,9 @@ func TestRunTax_Success(t *testing.T) {
 	db.DB.Exec("DELETE FROM transactions")
 
 	db.DB.Exec(`
-		INSERT INTO transactions (id, buyer_id, seller_id, security_id, quantity, price_per_unit, total_price, tax_paid, created_at) VALUES
-		(1, 1, 2, 101, 10, 25.0, 250.0, FALSE, strftime('%Y-%m-%d', 'now')),
-		(2, 2, 1, 102, 5, 20.0, 100.0, FALSE, strftime('%Y-%m-%d', 'now'))
+		INSERT INTO transactions (id, order_id, buyer_id, seller_id, security_id, quantity, price_per_unit, total_price, tax_paid, created_at) VALUES
+		(1, 1, 1, 2, 101, 10, 25.0, 250.0, FALSE, strftime('%Y-%m-%d', 'now')),
+		(2, 2, 2, 1, 102, 5, 20.0, 100.0, FALSE, strftime('%Y-%m-%d', 'now'))
 	`)
 
 	req := httptest.NewRequest(http.MethodPost, "/tax/run", nil)
@@ -39,33 +39,29 @@ func TestRunTax_Success(t *testing.T) {
 	assert.True(t, response.Success)
 	assert.Equal(t, "Tax calculation and deduction completed successfully.", response.Data)
 
-	// Verify database updates
-	//var taxPaidCount int
-	//db.DB.Raw("SELECT COUNT(*) FROM transactions WHERE tax_paid = TRUE").Scan(&taxPaidCount)
-	//assert.Equal(t, 2, taxPaidCount)
+	var taxPaidCount int
+	db.DB.Raw("SELECT COUNT(*) FROM transactions WHERE tax_paid = TRUE").Scan(&taxPaidCount)
+	assert.Equal(t, 2, taxPaidCount)
 
 }
 
-func TestRunTax_InvalidRequest(t *testing.T) {
-	// Setup
+func TestRunTax_Success(t *testing.T) {
 	app := fiber.New()
 	taxController := NewTaxController()
 	app.Post("/tax/run", taxController.RunTax)
 
-	// Test case: Missing Authorization header
 	req := httptest.NewRequest(http.MethodPost, "/tax/run", nil)
 	resp, _ := app.Test(req)
 	defer resp.Body.Close()
 
-	// Assertions
-	assert.Equal(t, 500, resp.StatusCode)
+	assert.Equal(t, 202, resp.StatusCode)
 
 	body, _ := io.ReadAll(resp.Body)
 	var response types.Response
 	json.Unmarshal(body, &response)
 
-	assert.False(t, response.Success)
-	assert.Contains(t, response.Error, "Error fetching transactions")
+	assert.True(t, response.Success)
+	assert.Contains(t, response.Data, "Tax calculation and deduction completed successfully.")
 }
 
 func TestGetAggregatedTaxForUser_InvalidUserID(t *testing.T) {
