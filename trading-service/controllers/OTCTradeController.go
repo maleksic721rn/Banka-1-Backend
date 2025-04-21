@@ -436,6 +436,13 @@ func (c *OTCTradeController) ExecuteOptionContract(ctx *fiber.Ctx) error {
 		})
 	}
 
+	if contract.Quantity > contract.Portfolio.PublicCount {
+		return ctx.Status(fiber.StatusBadRequest).JSON(types.Response{
+			Success: false,
+			Error:   "Nema dovoljno raspoloživih akcija za izvršavanje ovog ugovora",
+		})
+	}
+
 	var buyerAccountID, sellerAccountID int64 = -1, -1
 
 	var buyerAccount *dto.Account
