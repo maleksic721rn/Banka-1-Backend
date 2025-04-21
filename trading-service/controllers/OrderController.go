@@ -263,70 +263,20 @@ func (oc *OrderController) CreateOrder(c *fiber.Ctx) error {
 	}
 
 	// Provera dostupnosti unita ako se order odobrava odmah
-	if status == "approved" {
-		if strings.ToLower(orderRequest.Direction) == "sell" {
-			var portfolio types.Portfolio
-			if err := db.DB.Where("user_id = ? AND security_id = ?", orderRequest.UserID, orderRequest.SecurityID).First(&portfolio).Error; err != nil {
-				return c.Status(400).JSON(types.Response{
-					Success: false,
-					Error:   "Nemate ovu hartiju u portfoliju",
-				})
-			}
-			if portfolio.Quantity < orderRequest.Quantity {
-				return c.Status(400).JSON(types.Response{
-					Success: false,
-					Error:   fmt.Sprintf("Nemate dovoljno hartija za AON prodaju (imate %d, traženo %d)", portfolio.Quantity, orderRequest.Quantity),
-				})
-			}
+	if status == "approved" && strings.ToLower(orderRequest.Direction) == "sell" {
+		ok, available, err := orders.CanSell(orderRequest.UserID, orderRequest.SecurityID, orderRequest.Quantity)
+		if err != nil {
+			return c.Status(500).JSON(types.Response{
+				Success: false,
+				Error:   "Greška pri proveri dostupnosti hartija",
+			})
 		}
-	}
-
-	var orderType string
-	switch {
-	case orderRequest.StopPricePerUnit == nil && orderRequest.LimitPricePerUnit == nil:
-		orderType = "MARKET"
-	case orderRequest.StopPricePerUnit == nil && orderRequest.LimitPricePerUnit != nil:
-		orderType = "LIMIT"
-	case orderRequest.StopPricePerUnit != nil && orderRequest.LimitPricePerUnit == nil:
-		orderType = "STOP"
-	case orderRequest.StopPricePerUnit != nil && orderRequest.LimitPricePerUnit != nil:
-		orderType = "STOP-LIMIT"
-	}
-
-	order := types.Order{
-		UserID:            orderRequest.UserID,
-		AccountID:         orderRequest.AccountID,
-		SecurityID:        orderRequest.SecurityID,
-		Quantity:          orderRequest.Quantity,
-		ContractSize:      orderRequest.ContractSize,
-		StopPricePerUnit:  orderRequest.StopPricePerUnit,
-		LimitPricePerUnit: orderRequest.LimitPricePerUnit,
-		OrderType:         orderType,
-		Direction:         orderRequest.Direction,
-		Status:            status, // TODO: pribaviti needs approval vrednost preko token-a?
-		ApprovedBy:        approvedBy,
-		LastModified:      time.Now().Unix(),
-		IsDone:            false,
-		RemainingParts:    &orderRequest.Quantity,
-		AfterHours:        false, // TODO: dodati check za ovo
-		AON:               orderRequest.AON,
-		Margin:            orderRequest.Margin,
-	}
-
-	tx := db.DB.Create(&order)
-	if err := tx.Error; err != nil {
-		return c.Status(400).JSON(types.Response{
-			Success: false,
-			Error:   "Neuspelo kreiranje: " + err.Error(),
-		})
-	}
-
-	if order.Status == "approved" {
-		go orders.MatchOrder(order)
-	}
-
-	if strings.ToLower(order.Direction) == "sell" && order.Status == "approved" {
-		_ = orders.UpdateAvailableVolume(order.SecurityID)
+		if !ok {
+			return c.Status(400).JSON(types.Response{
+				Success: false,
+				Error:   fmt.Sprintf("Nemate dovoljno raspoloživih hartija za prodaju. Slobodno dostupno: %d", available),
+			})
+		}
 	}
 
 	if orderRequest.Margin {
@@ -392,6 +342,54 @@ func (oc *OrderController) CreateOrder(c *fiber.Ctx) error {
 		}
 	}
 
+	var orderType string
+	switch {
+	case orderRequest.StopPricePerUnit == nil && orderRequest.LimitPricePerUnit == nil:
+		orderType = "MARKET"
+	case orderRequest.StopPricePerUnit == nil && orderRequest.LimitPricePerUnit != nil:
+		orderType = "LIMIT"
+	case orderRequest.StopPricePerUnit != nil && orderRequest.LimitPricePerUnit == nil:
+		orderType = "STOP"
+	case orderRequest.StopPricePerUnit != nil && orderRequest.LimitPricePerUnit != nil:
+		orderType = "STOP-LIMIT"
+	}
+
+	order := types.Order{
+		UserID:            orderRequest.UserID,
+		AccountID:         orderRequest.AccountID,
+		SecurityID:        orderRequest.SecurityID,
+		Quantity:          orderRequest.Quantity,
+		ContractSize:      orderRequest.ContractSize,
+		StopPricePerUnit:  orderRequest.StopPricePerUnit,
+		LimitPricePerUnit: orderRequest.LimitPricePerUnit,
+		OrderType:         orderType,
+		Direction:         orderRequest.Direction,
+		Status:            status, // TODO: pribaviti needs approval vrednost preko token-a?
+		ApprovedBy:        approvedBy,
+		LastModified:      time.Now().Unix(),
+		IsDone:            false,
+		RemainingParts:    &orderRequest.Quantity,
+		AfterHours:        false, // TODO: dodati check za ovo
+		AON:               orderRequest.AON,
+		Margin:            orderRequest.Margin,
+	}
+
+	tx := db.DB.Create(&order)
+	if err := tx.Error; err != nil {
+		return c.Status(400).JSON(types.Response{
+			Success: false,
+			Error:   "Neuspelo kreiranje: " + err.Error(),
+		})
+	}
+
+	if order.Status == "approved" {
+		go orders.MatchOrder(order)
+	}
+
+	if strings.ToLower(order.Direction) == "sell" && order.Status == "approved" {
+		_ = orders.UpdateAvailableVolume(order.SecurityID)
+	}
+
 	return c.JSON(types.Response{
 		Success: true,
 		Data:    order.ID,
@@ -455,18 +453,17 @@ func ApproveDeclineOrder(c *fiber.Ctx, decline bool) error {
 		}
 
 		if strings.ToLower(order.Direction) == "sell" {
-			// Provera da li korisnik ima dovoljno hartija u portfoliju
-			var portfolio types.Portfolio
-			if err := db.DB.Where("user_id = ? AND security_id = ?", order.UserID, order.SecurityID).First(&portfolio).Error; err != nil {
-				return c.Status(400).JSON(types.Response{
+			ok, available, err := orders.CanSell(order.UserID, order.SecurityID, order.Quantity)
+			if err != nil {
+				return c.Status(500).JSON(types.Response{
 					Success: false,
-					Error:   "Nemate ovu hartiju u portfoliju",
+					Error:   "Greška pri proveri dostupnosti hartija",
 				})
 			}
-			if portfolio.Quantity < order.Quantity {
+			if !ok {
 				return c.Status(400).JSON(types.Response{
 					Success: false,
-					Error:   fmt.Sprintf("Nemate dovoljno hartija da biste prodali (imate %d, traženo %d)", portfolio.Quantity, order.Quantity),
+					Error:   fmt.Sprintf("Nemate dovoljno raspoloživih hartija za odobravanje prodaje. Slobodno dostupno: %d", available),
 				})
 			}
 		}

@@ -450,9 +450,9 @@ func updatePortfolio(userID uint, securityID uint, delta int, price float64, tx 
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		if delta > 0 {
 			portfolio = types.Portfolio{
-				UserID:     userID,
-				SecurityID: securityID,
-				Quantity:   delta,
+				UserID:        userID,
+				SecurityID:    securityID,
+				Quantity:      delta,
 				PurchasePrice: price,
 			}
 			if err := tx.Create(&portfolio).Error; err != nil {
@@ -675,4 +675,34 @@ func getSellerAccountID(a, b types.Order) uint {
 		return a.AccountID
 	}
 	return b.AccountID
+}
+
+func CanSell(userID, securityID uint, requestedQty int) (bool, int, error) {
+	var sec types.Security
+	if err := db.DB.First(&sec, securityID).Error; err != nil {
+		return false, 0, err
+	}
+
+	var portfolio types.Portfolio
+	if err := db.DB.Where("user_id = ? AND security_id = ?", userID, securityID).First(&portfolio).Error; err != nil {
+		return false, 0, err
+	}
+
+	// Suma svih već POSTOJEĆIH neizvršenih SELL naloga
+	var reserved int64
+	err := db.DB.Model(&types.Order{}).
+		Select("COALESCE(SUM(remaining_parts), 0)").
+		Where("user_id = ? AND security_id = ? AND lower(direction) = 'sell' AND lower(status) = 'approved' AND COALESCE(is_done, false) = false", userID, securityID).
+		Scan(&reserved).Error
+	if err != nil {
+		return false, 0, err
+	}
+
+	// Izračunaj slobodno dostupne privatne hartije
+	available := portfolio.Quantity - portfolio.PublicCount - int(reserved)
+
+	if requestedQty > available {
+		return false, available, nil
+	}
+	return true, available, nil
 }

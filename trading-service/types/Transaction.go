@@ -4,7 +4,8 @@ import "time"
 
 type Transaction struct {
 	ID           uint      `gorm:"primaryKey"`
-	OrderID      uint      `gorm:"not null"`
+	OrderID      uint
+	ContractID   uint
 	BuyerID      uint      `gorm:"not null"`
 	SellerID     uint      `gorm:"not null"`
 	SecurityID   uint      `gorm:"not null"`
