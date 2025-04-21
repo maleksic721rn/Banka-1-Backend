@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.jms.core.JmsTemplate;
 import org.springframework.security.crypto.bcrypt.BCrypt;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -28,17 +29,20 @@ public class ResetPasswordService {
     private final JmsTemplate jmsTemplate;
     private final MessageHelper messageHelper;
     private final String destinationEmail;
+    private final PasswordEncoder encoder;
 
     @Value("${frontend.url}")
     private String frontendUrl;
 
-    public ResetPasswordService(CustomerRepository customerRepository, ResetPasswordRepository resetPasswordRepository, EmployeeRepository employeeRepository, JmsTemplate jmsTemplate, MessageHelper messageHelper, @Value("${destination.email}") String destinationEmail) {
+    public ResetPasswordService(CustomerRepository customerRepository, ResetPasswordRepository resetPasswordRepository, EmployeeRepository employeeRepository, JmsTemplate jmsTemplate, MessageHelper messageHelper, @Value("${destination.email}") String destinationEmail,
+                                PasswordEncoder encoder) {
         this.customerRepository = customerRepository;
         this.resetPasswordRepository = resetPasswordRepository;
         this.employeeRepository = employeeRepository;
         this.jmsTemplate = jmsTemplate;
         this.messageHelper = messageHelper;
         this.destinationEmail = destinationEmail;
+	    this.encoder = encoder;
     }
 
     public void requestPasswordReset(ResetPasswordRequest resetPasswordRequest) {
@@ -83,23 +87,20 @@ public class ResetPasswordService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Token je istekao.");
         if (resetPassword.getUsed())
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Token je već iskorišćen.");
-        String salt = generateSalt();
-        String hashed = BCrypt.hashpw(resetPasswordConfirmationRequest.getPassword() + salt, BCrypt.gensalt());
+        String password = encoder.encode(resetPasswordConfirmationRequest.getPassword());
         if (resetPassword.getType() == 0) {
             var customer = customerRepository.findById(resetPassword.getUserId());
             if(customer.isEmpty()) {
                 throw new IllegalStateException("Impossible state reached");
             }
-            customer.get().setPassword(hashed);
-            customer.get().setSaltPassword(salt);
+            customer.get().setPassword(password);
             customerRepository.save(customer.get());
         } else {
             var employee = employeeRepository.findById(resetPassword.getUserId());
             if (employee.isEmpty()) {
                 throw new IllegalStateException("Impossible state reached");
             }
-            employee.get().setPassword(hashed);
-            employee.get().setSaltPassword(salt);
+            employee.get().setPassword(password);
             employeeRepository.save(employee.get());
         }
         resetPassword.setUsed(true);
@@ -108,11 +109,5 @@ public class ResetPasswordService {
 
     public String generateToken() {
         return UUID.randomUUID().toString();
-    }
-
-    private String generateSalt() {
-        byte[] saltBytes = new byte[16];
-        new SecureRandom().nextBytes(saltBytes);
-        return Base64.getEncoder().encodeToString(saltBytes);
     }
 }

@@ -47,9 +47,6 @@ public abstract class User {
 	@Column
 	private String password;
 
-	@Column
-	private String saltPassword;
-
 	private String verificationCode;
 
 	@ElementCollection(fetch = FetchType.EAGER)
