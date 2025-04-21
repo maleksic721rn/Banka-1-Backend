@@ -6,6 +6,7 @@ import com.banka1.banking.dto.MoneyTransferDTO;
 import com.banka1.banking.dto.NotificationDTO;
 import com.banka1.banking.models.*;
 import com.banka1.banking.models.helper.CurrencyType;
+import com.banka1.banking.models.helper.IdempotenceKey;
 import com.banka1.banking.models.helper.TransferStatus;
 import com.banka1.banking.models.helper.TransferType;
 import com.banka1.banking.repository.*;
@@ -509,7 +510,7 @@ public class TransferService {
         Transfer transfer = transferRepository.findById(transferId)
                 .orElseThrow(() -> new RuntimeException("Transfer not found"));
 
-        if (!transfer.getStatus().equals(TransferStatus.PENDING)) {
+        if (!transfer.getStatus().equals(TransferStatus.RESERVED)) {
             throw new RuntimeException("Transfer is not in pending state");
         }
 
@@ -528,6 +529,8 @@ public class TransferService {
         }
 
         try {
+            System.out.println("Processing foreign bank transfer");
+            System.out.println(fromAccount.getBalance() + " - " + amount);
             fromAccount.setBalance(fromAccount.getBalance() - amount);
             fromAccount.setReservedBalance(fromAccount.getReservedBalance() + amount);
 
@@ -550,6 +553,7 @@ public class TransferService {
             interbankService.sendNewTXMessage(transfer);
 
             transfer.setStatus(TransferStatus.RESERVED);
+            System.out.println("Transfer reserved");
             transfer.setCompletedAt(Instant.now().toEpochMilli());
             transferRepository.save(transfer);
 
@@ -893,7 +897,7 @@ public class TransferService {
         transfer.setAmount(moneyTransferDTO.getAmount());
         transfer.setReceiver(moneyTransferDTO.getReceiver());
         transfer.setAdress(moneyTransferDTO.getAdress() != null ? moneyTransferDTO.getAdress() : "N/A");
-        transfer.setStatus(TransferStatus.PENDING);
+        transfer.setStatus(TransferStatus.RESERVED);
         transfer.setType(TransferType.FOREIGN_BANK);
         transfer.setFromCurrency(fromCurrency);
         transfer.setToCurrency(fromCurrency);
@@ -910,8 +914,13 @@ public class TransferService {
 
     public Long createMoneyTransfer(MoneyTransferDTO moneyTransferDTO){
 
+        System.out.println("----------------------------------------");
+        System.out.println("Creating money transfer");
+        System.out.println("From account: " + moneyTransferDTO.getFromAccountNumber());
+        System.out.println("To account: " + moneyTransferDTO.getRecipientAccount());
         // if moneyTransferDTO.getRecipientAccount() starts with 444 then it payment to the other bank
         if (moneyTransferDTO.getRecipientAccount().startsWith("444")) {
+            System.out.println("Creating foreign bank transfer");
             return createForeignBankTransfer(moneyTransferDTO);
         }
 
@@ -993,6 +1002,8 @@ public class TransferService {
         transfer.setOtp(otpCode);
         transferRepository.save(transfer);
 
+        System.out.println("OTP code: " + otpCode);
+
         NotificationDTO emailDto = new NotificationDTO();
         emailDto.setSubject("Verifikacija");
         emailDto.setEmail(email);
@@ -1039,6 +1050,72 @@ public class TransferService {
 
     public List<Transfer> getAllTransfersStartedByUser(Long userId) {
         return transferRepository.findAllByFromAccountId_OwnerID(userId);
+    }
+
+    public Transfer commitForeignBankTransfer(IdempotenceKey idempotenceKey) {
+        Long transferID = Long.valueOf(idempotenceKey.getLocallyGeneratedKey());
+        Transfer transfer = transferRepository.findById(transferID)
+                .orElseThrow(() -> new RuntimeException("Transfer not found"));
+
+        if (transfer.getStatus() != TransferStatus.RESERVED) {
+            throw new RuntimeException("Transfer is not in reserved state");
+        }
+
+        if (transfer.getStatus() == TransferStatus.COMPLETED) {
+            throw new RuntimeException("Transfer has already been processed");
+        }
+
+        try {
+
+            // create transaction for the transfer
+            Transaction transaction = new Transaction();
+            transaction.setFromAccountId(transfer.getFromAccountId());
+            transaction.setToAccountId(null); // No destination account for foreign bank transfer
+            transaction.setAmount(transfer.getAmount());
+            transaction.setCurrency(transfer.getFromCurrency());
+            transaction.setFinalAmount(transfer.getAmount());
+            transaction.setFee(0.0);
+            transaction.setTimestamp(System.currentTimeMillis());
+            transaction.setDescription("Foreign bank transfer");
+            transaction.setTransfer(transfer);
+            transactionRepository.save(transaction);
+
+            Account fromAccount = transfer.getFromAccountId();
+            fromAccount.setReservedBalance(fromAccount.getReservedBalance() - transfer.getAmount());
+
+            transfer.setStatus(TransferStatus.COMPLETED);
+            transfer.setCompletedAt(System.currentTimeMillis());
+            transferRepository.save(transfer);
+            return transfer;
+        } catch (Exception e) {
+            throw new RuntimeException("Error processing transfer", e);
+        }
+    }
+
+    public Transfer rollbackForeignBankTransfer(IdempotenceKey idempotenceKey) {
+        Long transferID = Long.valueOf(idempotenceKey.getLocallyGeneratedKey());
+        Transfer transfer = transferRepository.findById(transferID)
+                .orElseThrow(() -> new RuntimeException("Transfer not found"));
+
+        if (transfer.getStatus() != TransferStatus.RESERVED) {
+            throw new RuntimeException("Transfer is not in reserved state");
+        }
+
+        if (transfer.getStatus() == TransferStatus.CANCELLED) {
+            throw new RuntimeException("Transfer has already been cancelled");
+        }
+
+        try {
+            Account fromAccount = transfer.getFromAccountId();
+            fromAccount.setReservedBalance(fromAccount.getReservedBalance() - transfer.getAmount());
+            fromAccount.setBalance(fromAccount.getBalance() + transfer.getAmount());
+
+            transfer.setStatus(TransferStatus.CANCELLED);
+            transferRepository.save(transfer);
+            return transfer;
+        } catch (Exception e) {
+            throw new RuntimeException("Error processing transfer", e);
+        }
     }
 }
 

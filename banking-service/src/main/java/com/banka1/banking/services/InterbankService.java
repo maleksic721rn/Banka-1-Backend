@@ -3,6 +3,7 @@ package com.banka1.banking.services;
 import com.banka1.banking.dto.CreateEventDTO;
 import com.banka1.banking.dto.interbank.InterbankMessageDTO;
 import com.banka1.banking.dto.interbank.InterbankMessageType;
+import com.banka1.banking.dto.interbank.VoteDTO;
 import com.banka1.banking.dto.interbank.committx.CommitTransactionDTO;
 import com.banka1.banking.dto.interbank.newtx.ForeignBankIdDTO;
 import com.banka1.banking.dto.interbank.newtx.InterbankTransactionDTO;
@@ -16,6 +17,7 @@ import com.banka1.banking.models.Transfer;
 import com.banka1.banking.models.helper.IdempotenceKey;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.concurrent.ConcurrentTaskScheduler;
 import org.springframework.stereotype.Service;
@@ -26,31 +28,44 @@ import java.util.List;
 import java.util.UUID;
 
 @Service
-@RequiredArgsConstructor
-public class InterbankService {
+public class InterbankService implements InterbankOperationService {
 
     private final EventService eventService;
     private final EventExecutorService eventExecutorService;
     private final ObjectMapper objectMapper;
+    private final TransferService transferService;
+
+    public InterbankService(EventService eventService, EventExecutorService eventExecutorService, ObjectMapper objectMapper, @Lazy TransferService transferService) {
+        this.eventService = eventService;
+        this.eventExecutorService = eventExecutorService;
+        this.objectMapper = objectMapper;
+        this.transferService = transferService;
+    }
 
     public void sendInterbankMessage(InterbankMessageDTO<?> messageDto, String targetUrl) {
+        Event event;
         try {
 
             validateMessageByType(messageDto);
 
             String payloadJson = objectMapper.writeValueAsString(messageDto);
             System.out.println("trying to send interbank message: " + payloadJson);
-            Event event = eventService.createEvent(new CreateEventDTO(
+            event = eventService.createEvent(new CreateEventDTO(
                     messageDto,
                     payloadJson,
                     targetUrl
             ));
 
             System.out.println("Attempting to send event: " + event.getId());
-            eventExecutorService.attemptEventAsync(event);
 
         } catch (Exception ex) {
             throw new RuntimeException("Failed to send interbank message", ex);
+        }
+
+        try {
+            eventExecutorService.attemptEventAsync(event);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to send interbank message", e);
         }
     }
 
@@ -85,8 +100,7 @@ public class InterbankService {
                         ), ""),
                         transfer.getAmount(),
                         new MonetaryAssetDTO(
-                                "MONAS",
-                                new CurrencyAsset(transfer.getToCurrency().toString())
+                                new CurrencyAsset(transfer.getToCurrency().getCode().toString())
                         )
                 ),
                 new PostingDTO(
@@ -96,8 +110,7 @@ public class InterbankService {
                         ), ""),
                         -transfer.getAmount(),
                         new MonetaryAssetDTO(
-                                "MONAS",
-                                new CurrencyAsset(transfer.getFromCurrency().toString())
+                                new CurrencyAsset(transfer.getFromCurrency().getCode().toString())
                         )
                 )
         ));
@@ -113,7 +126,7 @@ public class InterbankService {
         System.out.println("Sending interbank message: " + transaction);
 
         try {
-            Thread.sleep(5000);
+            Thread.sleep(1000);
             sendInterbankMessage(transaction, "http://localhost:8082/interbank");
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
@@ -127,13 +140,16 @@ public class InterbankService {
         return idempotenceKey;
     }
 
-    public void webhook(InterbankMessageDTO<?> messageDto, String rawPayload, String sourceUrl) {
+    public VoteDTO webhook(InterbankMessageDTO<?> messageDto, String rawPayload, String sourceUrl) {
 //        eventService.receiveEvent(messageDto, rawPayload, sourceUrl);
+
+        VoteDTO response = new VoteDTO();
 
         switch (messageDto.getMessageType()) {
             case NEW_TX :
-                // TODO
-                break;
+                System.out.println("Received NEW_TX message: " + messageDto.getMessage());
+                response.setVote("YES");
+                response.setReasons(List.of());
             case COMMIT_TX :
                 // TODO
                 break;
@@ -144,6 +160,8 @@ public class InterbankService {
                 throw new IllegalArgumentException("Unknown message type");
 
         }
+
+        return response;
     }
 
     @SuppressWarnings("unchecked")
@@ -168,6 +186,56 @@ public class InterbankService {
                 }
             }
             default -> throw new IllegalArgumentException("Unknown message type");
+        }
+    }
+
+    @Override
+    public void sendCommit(Event event) {
+        System.out.println("Sending commit for event: " + event.getId());
+
+        InterbankMessageDTO<CommitTransactionDTO> message = new InterbankMessageDTO<>();
+        message.setMessageType(InterbankMessageType.COMMIT_TX);
+        IdempotenceKey idempotenceKey = generateIdempotenceKey(message);
+        message.setIdempotenceKey(idempotenceKey);
+
+        CommitTransactionDTO commitTransactionDTO = new CommitTransactionDTO();
+        commitTransactionDTO.setTransactionId(event.getIdempotenceKey());
+
+        message.setMessage(commitTransactionDTO);
+
+
+
+        try {
+            Thread.sleep(1000);
+            sendInterbankMessage(message, "http://localhost:8082/interbank");
+
+            transferService.commitForeignBankTransfer(event.getIdempotenceKey());
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override
+    public void sendRollback(Event event) {
+        System.out.println("Sending rollback for event: " + event.getId());
+
+        InterbankMessageDTO<RollbackTransactionDTO> message = new InterbankMessageDTO<>();
+        message.setMessageType(InterbankMessageType.ROLLBACK_TX);
+        IdempotenceKey idempotenceKey = generateIdempotenceKey(message);
+        message.setIdempotenceKey(idempotenceKey);
+
+        RollbackTransactionDTO rollbackTransactionDTO = new RollbackTransactionDTO();
+        rollbackTransactionDTO.setTransactionId(event.getIdempotenceKey());
+
+        message.setMessage(rollbackTransactionDTO);
+
+        try {
+            Thread.sleep(1000);
+            sendInterbankMessage(message, "http://localhost:8082/interbank");
+
+            transferService.rollbackForeignBankTransfer(event.getIdempotenceKey());
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
         }
     }
 }

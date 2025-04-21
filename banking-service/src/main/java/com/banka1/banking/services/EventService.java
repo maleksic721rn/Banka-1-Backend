@@ -105,7 +105,7 @@ public class EventService {
 
         event.setIdempotenceKey(createEventDTO.getMessage().getIdempotenceKey());
 
-        Event saved = eventRepository.saveAndFlush(event);
+        Event saved = eventRepository.save(event);
         System.out.println("Event saved: " + saved.getId());
         return saved;
     }

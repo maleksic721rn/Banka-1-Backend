@@ -9,6 +9,5 @@ import lombok.EqualsAndHashCode;
 @Data
 @AllArgsConstructor
 public class MonetaryAssetDTO extends AssetDTO {
-    private String type; // uvek "MONAS"
     private CurrencyAsset asset;
 }

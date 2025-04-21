@@ -207,11 +207,18 @@ public class AccountService {
         for (Transaction transaction : allTransactions) {
             TransactionResponseDTO dto = modelMapper.map(transaction, TransactionResponseDTO.class);
 
-            CustomerDTO sender = userServiceCustomer.getCustomerById(dto.getFromAccountId().getOwnerID());
-            CustomerDTO reciever = userServiceCustomer.getCustomerById(dto.getToAccountId().getOwnerID());
-
-            dto.setSenderName(sender.getFirstName() + " " + sender.getLastName());
-            dto.setReceiverName(reciever.getFirstName() + " " + reciever.getLastName());
+            if (dto.getFromAccountId() != null) {
+                CustomerDTO sender = userServiceCustomer.getCustomerById(dto.getFromAccountId().getOwnerID());
+                dto.setSenderName(sender.getFirstName() + " " + sender.getLastName());
+            } else {
+                dto.setSenderName("Strana banka");
+            }
+            if (dto.getToAccountId() != null) {
+                CustomerDTO receiver = userServiceCustomer.getCustomerById(dto.getToAccountId().getOwnerID());
+                dto.setReceiverName(receiver.getFirstName() + " " + receiver.getLastName());
+            } else {
+                dto.setReceiverName("Strana banka");
+            }
 
             responseDTOs.add(dto);
         }

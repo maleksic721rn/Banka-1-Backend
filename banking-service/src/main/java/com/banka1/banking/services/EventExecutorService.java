@@ -13,6 +13,7 @@ import com.banka1.banking.models.helper.DeliveryStatus;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -32,14 +33,20 @@ import java.time.Duration;
 import java.time.Instant;
 
 @Service
-@RequiredArgsConstructor
 public class EventExecutorService {
 
     private final EventService eventService;
+    private final InterbankOperationService interbankService;
+
     private final TaskScheduler taskScheduler = new ConcurrentTaskScheduler();
 
     private static final int MAX_RETRIES = 5;
     private static final Duration RETRY_DELAY = Duration.ofSeconds(20);
+
+    public EventExecutorService(EventService eventService, @Lazy InterbankOperationService interbankService) {
+        this.eventService = eventService;
+        this.interbankService = interbankService;
+    }
 
     @Async
     public void attemptEventAsync(Event event) {
@@ -124,12 +131,18 @@ public class EventExecutorService {
 
     public void handleNewTxSuccess(Event event, String responseBody) {
         try {
-            ObjectMapper mapper = new ObjectMapper();
-            VoteDTO vote = mapper.readValue(responseBody, VoteDTO.class);
+            System.out.println("Handling new transaction success for event: " + event.getId());
+            String actualJson = new ObjectMapper().readValue(responseBody, String.class);
+            VoteDTO vote = new ObjectMapper().readValue(actualJson, VoteDTO.class);
 
-
+            if (vote.getVote().equalsIgnoreCase("yes")) {
+                interbankService.sendCommit(event);
+            } else {
+                interbankService.sendRollback(event);
+            }
 
         } catch (Exception e) {
+            e.printStackTrace();
             throw new RuntimeException("Failed to handle new transaction success: " + e.getMessage());
         }
     }
