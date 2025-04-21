@@ -107,7 +107,7 @@ func MatchOrder(order types.Order) {
 			price := getOrderPrice(order)
 
 			// izvršavanje koliko može
-			matchQuantity := executePartial(order, price, tx)
+			matchQuantity := executePartial(&order, price, tx)
 			if order.RemainingParts != nil {
 				fmt.Printf("Nakon executePartial: remaining=%d\n", *order.RemainingParts)
 			} else {
@@ -256,181 +256,194 @@ func getOrderPrice(order types.Order) float64 {
 	return 0.0
 }
 
-func executePartial(order types.Order, price float64, tx *gorm.DB) int {
-	lock := getLock(order.SecurityID)
+func executePartial(order1 *types.Order, price float64, tx *gorm.DB) int {
+	lock := getLock(order1.SecurityID)
 	lock.Lock()
 	defer lock.Unlock()
 
-	if order.Status == "done" || order.RemainingParts == nil || *order.RemainingParts <= 0 {
-		fmt.Printf("Order %d je već završen ili nema remaining parts\n", order.ID)
+	if order1.Status == "done" || order1.RemainingParts == nil || *order1.RemainingParts <= 0 {
+		fmt.Printf("Order %d je već završen ili nema remaining parts\n", order1.ID)
 		return 0
 	}
 
-	var match types.Order
 	direction := "buy"
-	if strings.ToLower(order.Direction) == "buy" {
-		direction = "Sell"
+	if strings.ToLower(order1.Direction) == "buy" {
+		direction = "sell"
 	} else {
-		direction = "Buy"
+		direction = "buy"
 	}
 
-	fmt.Printf("Pokušavam da pronađem match za Order %d...\n", order.ID)
+	fmt.Printf("Pokušavam da pronađem match za Order %d...\n", order1.ID)
 
-	tx.Debug().Where("security_id = ? AND direction = ? AND status = ? AND is_done = ?", order.SecurityID, direction, "approved", false).
+	var matches []types.Order
+
+	err := tx.Debug().
+		Model(&types.Order{}).
+		Where("security_id = ? AND direction = ? AND user_id != ? AND status = 'approved' AND NOT is_done",
+			order1.SecurityID, direction, order1.UserID).
 		Order("last_modified").
-		First(&match)
+		Find(&matches).Error
 
-	fmt.Printf("Pokušan match — pronađen ID=%d, userID=%d\n", match.ID, match.UserID)
-
-	if match.ID == 0 {
-		fmt.Println("Nema dostupnog ordera za matchovanje - match.ID == 0")
-		return 0
-	}
-
-	// Provere za matchovani order
-	if match.UserID == order.UserID {
-		fmt.Println("Preskočen self-match")
-		return 0
-	}
-
-	if match.AccountID == 0 {
-		fmt.Println("Matchovani order ima account_id = 0, preskačem ga...")
-		return 0
-	}
-
-	if match.AON {
-		if match.RemainingParts == nil || order.RemainingParts == nil {
-			fmt.Println("AON match bez remaining parts")
-			return 0
-		}
-		if *match.RemainingParts < *order.RemainingParts {
-			fmt.Println("Matchovani order je AON i ne može da se izvrši u celosti")
-			return 0
-		}
-	}
-
-	// Po specifikaciji, MARKET BUY ne proverava matchov limit
-	if !(strings.ToUpper(order.OrderType) == "MARKET" && strings.ToLower(order.Direction) == "buy") {
-		if !canPreExecute(match) {
-			fmt.Println("Preskočen match sa nedovoljnim uslovima")
-			return 0
-		}
-	}
-
-	marginOrder := order
-	if !order.Margin && match.Margin == true {
-		marginOrder = match
-	}
-
-	if marginOrder.Margin {
-		var actuary types.Actuary
-		if err := tx.Where("user_id = ?", marginOrder.UserID).First(&actuary).Error; err != nil || actuary.Department != "agent" {
-			fmt.Println("Matchovani margin order nema validnog aktuara")
-			return 0
-		}
-		if actuary.Department != "agent" {
-			fmt.Println("Korisnik nije agent")
-			return 0
-		}
-		if marginOrder.RemainingParts == nil {
-			fmt.Println("RemainingParts je nil u margin logici")
-			return 0
-		}
-		initialMargin := price * float64(*marginOrder.RemainingParts) * 0.3 * 1.1
-		if actuary.LimitAmount-actuary.UsedLimit < initialMargin {
-			fmt.Println("Matchovani margin order nema dovoljno limita")
-			return 0
-		}
-	}
-
-	matchQty := min(
-		ptrSafe(order.RemainingParts),
-		ptrSafe(match.RemainingParts),
-	)
-
-	if matchQty <= 0 {
-		fmt.Printf("Nevalidan matchQty = %d za Order %d\n", matchQty, order.ID)
-		return 0
-	}
-
-	uid := fmt.Sprintf("ORDER-match-%d-%d", order.ID, time.Now().Unix())
-	total := price * float64(matchQty)
-	fee := CalculateFee(order, total)
-	initiationDto := dto.OrderTransactionInitiationDTO{
-		Uid:             uid,
-		SellerAccountId: getSellerAccountID(order, match),
-		BuyerAccountId:  getBuyerAccountID(order, match),
-		Amount:          total,
-		Fee:             fee,
-		Direction:       order.Direction,
-	}
-
-	fmt.Println("Šaljem OrderTransactionInitiationDTO preko brokera...")
-
-	err := broker.SendOrderTransactionInit(&initiationDto)
 	if err != nil {
-		fmt.Printf("Greska pri slanju OrderTransactionInitiationDTO preko brokera: %v\n", err)
-		tx.Rollback()
+		fmt.Printf("Neuspelo dohvatanje matching order-a: %v", err)
 		return 0
 	}
 
-	txn := types.Transaction{
-		OrderID:      order.ID,
-		BuyerID:      getBuyerID(order, match),
-		SellerID:     getSellerID(order, match),
-		SecurityID:   order.SecurityID,
-		Quantity:     matchQty,
-		PricePerUnit: price,
-		TotalPrice:   price * float64(matchQty),
-	}
-	if err := tx.Create(&txn).Error; err != nil {
-		fmt.Printf("Greska pri kreiranju transakcije: %v\n", err)
-		return 0
-	}
+	for _, match := range matches {
+		order := *order1
+		order.RemainingParts = ptr(*order.RemainingParts)
 
-	if order.RemainingParts == nil {
-		tmp := order.Quantity
-		order.RemainingParts = &tmp
-	}
-	*order.RemainingParts -= matchQty
-
-	if match.RemainingParts == nil {
-		tmp := match.Quantity
-		match.RemainingParts = &tmp
-	}
-	*match.RemainingParts -= matchQty
-
-	if *match.RemainingParts == 0 {
-		match.IsDone = true
-		match.Status = "done"
-	}
-
-	if err := tx.Save(&order).Error; err != nil {
-		fmt.Printf("Greska pri save za order: %v\n", err)
-		return 0
-	}
-	if err := tx.Save(&match).Error; err != nil {
-		fmt.Printf("Greska pri save za match: %v\n", err)
-		return 0
-	}
-
-	updatePortfolio(getBuyerID(order, match), order.SecurityID, matchQty, tx)
-	updatePortfolio(getSellerID(order, match), order.SecurityID, -matchQty, tx)
-
-	if order.Margin {
-		var actuary types.Actuary
-		if err := tx.Where("user_id = ?", order.UserID).First(&actuary).Error; err == nil {
-			initialMargin := price * float64(matchQty) * 0.3 * 1.1
-			actuary.UsedLimit += initialMargin
-			tx.Save(&actuary)
+		if match.AccountID == 0 {
+			fmt.Println("Matchovani order ima account_id = 0, preskačem ga...")
+			continue
 		}
-	}
 
-	fmt.Printf("Match success: Order %d ↔ Order %d za %d @ %.2f\n", order.ID, match.ID, matchQty, price)
-	return matchQty
+		if match.AON {
+			if match.RemainingParts == nil || order.RemainingParts == nil {
+				fmt.Println("AON match bez remaining parts")
+				continue
+			}
+			if *match.RemainingParts < *order.RemainingParts {
+				fmt.Println("Matchovani order je AON i ne može da se izvrši u celosti")
+				continue
+			}
+		}
+
+		// Po specifikaciji, MARKET BUY ne proverava matchov limit
+		if !(strings.ToUpper(order.OrderType) == "MARKET" && strings.ToLower(order.Direction) == "buy") {
+			if !canPreExecute(match) {
+				fmt.Println("Preskočen match sa nedovoljnim uslovima")
+				continue
+			}
+		}
+
+		marginOrder := order
+		if !order.Margin && match.Margin == true {
+			marginOrder = match
+		}
+
+		if marginOrder.Margin {
+			var actuary types.Actuary
+			if err := tx.Where("user_id = ?", marginOrder.UserID).First(&actuary).Error; err != nil {
+				fmt.Println("Matchovani margin order nema validnog aktuara")
+				continue
+			}
+			if marginOrder.RemainingParts == nil {
+				fmt.Println("RemainingParts je nil u margin logici")
+				continue
+			}
+			initialMargin := price * float64(*marginOrder.RemainingParts) * 0.3 * 1.1
+			if actuary.LimitAmount-actuary.UsedLimit < initialMargin {
+				fmt.Println("Matchovani margin order nema dovoljno limita")
+				continue
+			}
+		}
+
+		matchQty := min(
+			ptrSafe(order.RemainingParts),
+			ptrSafe(match.RemainingParts),
+		)
+
+		if matchQty <= 0 {
+			fmt.Printf("Nevalidan matchQty = %d za Order %d\n", matchQty, order.ID)
+			continue
+		}
+
+		err = tx.Debug().Transaction(func(tx *gorm.DB) error {
+			txn := types.Transaction{
+				OrderID:      order.ID,
+				BuyerID:      getBuyerID(order, match),
+				SellerID:     getSellerID(order, match),
+				SecurityID:   order.SecurityID,
+				Quantity:     matchQty,
+				PricePerUnit: price,
+				TotalPrice:   price * float64(matchQty),
+			}
+			if err := tx.Debug().Create(&txn).Error; err != nil {
+				fmt.Printf("Greska pri kreiranju transakcije: %v\n", err)
+				return err
+			}
+
+			if order.RemainingParts == nil {
+				tmp := order.Quantity
+				order.RemainingParts = &tmp
+			}
+			*order.RemainingParts -= matchQty
+
+			if match.RemainingParts == nil {
+				tmp := match.Quantity
+				match.RemainingParts = &tmp
+			}
+			*match.RemainingParts -= matchQty
+
+			if *match.RemainingParts == 0 {
+				match.IsDone = true
+				match.Status = "done"
+			}
+
+			if err := tx.Save(&order).Error; err != nil {
+				fmt.Printf("Greska pri save za order: %v\n", err)
+				return err
+			}
+			if err := tx.Save(&match).Error; err != nil {
+				fmt.Printf("Greska pri save za match: %v\n", err)
+				return err
+			}
+
+			if err := updatePortfolio(getBuyerID(order, match), order.SecurityID, matchQty, price, tx); err != nil {
+				fmt.Printf("Greska pri updatePortfolio za buyer-a: %v\n", err)
+				return err
+			}
+
+			if err := updatePortfolio(getSellerID(order, match), order.SecurityID, -matchQty, price, tx); err != nil {
+				fmt.Printf("Greska pri updatePortfolio za seller-a: %v\n", err)
+				return err
+			}
+
+			if order.Margin {
+				var actuary types.Actuary
+				if err := tx.Where("user_id = ?", order.UserID).First(&actuary).Error; err == nil {
+					initialMargin := price * float64(matchQty) * 0.3 * 1.1
+					actuary.UsedLimit += initialMargin
+					tx.Save(&actuary)
+				}
+			}
+
+			uid := fmt.Sprintf("ORDER-match-%d-%d", order.ID, time.Now().Unix())
+			total := price * float64(matchQty)
+			fee := CalculateFee(order, total)
+			initiationDto := dto.OrderTransactionInitiationDTO{
+				Uid:             uid,
+				SellerAccountId: getSellerAccountID(order, match),
+				BuyerAccountId:  getBuyerAccountID(order, match),
+				Amount:          total,
+				Fee:             fee,
+				Direction:       order.Direction,
+			}
+
+			fmt.Println("Šaljem OrderTransactionInitiationDTO preko brokera...")
+
+			err := broker.SendOrderTransactionInit(&initiationDto)
+			if err != nil {
+				fmt.Printf("Greska pri slanju OrderTransactionInitiationDTO preko brokera: %v\n", err)
+				return err
+			}
+
+			return nil
+		})
+
+		if err != nil {
+			continue
+		}
+
+		fmt.Printf("Match success: Order %d ↔ Order %d za %d @ %.2f\n", order.ID, match.ID, matchQty, price)
+		*order1 = order
+		return matchQty
+	}
+	return 0
 }
 
-func updatePortfolio(userID uint, securityID uint, delta int, tx *gorm.DB) {
+func updatePortfolio(userID uint, securityID uint, delta int, price float64, tx *gorm.DB) error {
 	var portfolio types.Portfolio
 	err := tx.Where("user_id = ? AND security_id = ?", userID, securityID).First(&portfolio).Error
 
@@ -440,21 +453,22 @@ func updatePortfolio(userID uint, securityID uint, delta int, tx *gorm.DB) {
 				UserID:     userID,
 				SecurityID: securityID,
 				Quantity:   delta,
+				PurchasePrice: price,
 			}
 			if err := tx.Create(&portfolio).Error; err != nil {
-				fmt.Printf("Portfolio greška u create: user=%d, security=%d, delta=%d | %v\n", userID, securityID, delta, err)
+				return fmt.Errorf("Portfolio greška u create: user=%d, security=%d, delta=%d | %w\n", userID, securityID, delta, err)
 			} else {
 				fmt.Printf("Portfolio kreiran: user=%d, security=%d, quantity=%d\n", userID, securityID, delta)
 			}
 		} else {
-			fmt.Printf("Nema postojeći portfolio za korisnika %d i security %d, a pokušaj da se oduzme delta=%d\n", userID, securityID, delta)
+			return fmt.Errorf("Nema postojeći portfolio za korisnika %d i security %d, a pokušaj da se oduzme delta=%d\n", userID, securityID, delta)
 		}
-		return
+		return nil
 	}
 
 	if err != nil {
 		fmt.Printf("Greska pri dohvatanju portfolia: user=%d, security=%d | %v\n", userID, securityID, err)
-		return
+		return err
 	}
 
 	portfolio.Quantity += delta
@@ -473,6 +487,7 @@ func updatePortfolio(userID uint, securityID uint, delta int, tx *gorm.DB) {
 			fmt.Printf("Portfolio ažuriran: user=%d, security=%d, quantity=%d\n", userID, securityID, portfolio.Quantity)
 		}
 	}
+	return err
 }
 
 func calculateDelay(order types.Order) time.Duration {

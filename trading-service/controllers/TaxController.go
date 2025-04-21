@@ -173,10 +173,11 @@ func (tc *TaxController) GetAggregatedTaxForUser(c *fiber.Ctx) error {
 	err = db.DB.Raw(`
 		SELECT COALESCE(SUM(tax_amount), 0)
 		FROM tax
-		WHERE is_paid = 1 AND user_id = ? AND substr(month_year, 1, 4) = ?
+		WHERE is_paid = TRUE AND user_id = ? AND substr(month_year, 1, 4) = ?
 	`, userID, year).Scan(&paid).Error
 
 	if err != nil {
+		log.Printf("OVDE PUCA!!!_-------------------------------------")
 		log.Printf("Greška pri dohvatanju plaćenog poreza za user-a %d: %v", userID, err)
 		return c.Status(500).JSON(types.Response{
 			Success: false,
@@ -188,7 +189,7 @@ func (tc *TaxController) GetAggregatedTaxForUser(c *fiber.Ctx) error {
 	err = db.DB.Raw(`
 		SELECT COALESCE(SUM(tax_amount), 0)
 		FROM tax
-		WHERE is_paid = 0 AND user_id = ? AND month_year = ?
+		WHERE is_paid = FALSE AND user_id = ? AND month_year = ?
 	`, userID, yearMonth).Scan(&unpaid).Error
 
 	if err != nil {
