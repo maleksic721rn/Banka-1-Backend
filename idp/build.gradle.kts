@@ -19,12 +19,15 @@ repositories {
 }
 
 dependencies {
-    implementation(project(":common"))
+    implementation(project(":common")) {
+        // Exclude message broker dependency to avoid crashes on startup
+        exclude(group = "org.springframework.boot", module = "spring-boot-starter-activemq")
+    }
+
 
     compileOnly("org.projectlombok:lombok")
     annotationProcessor("org.projectlombok:lombok")
 
-    implementation("org.springframework.boot:spring-boot-starter-oauth2-client")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.boot:spring-boot-starter-validation")
