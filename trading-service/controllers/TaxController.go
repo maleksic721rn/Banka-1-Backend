@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"fmt"
+	"github.com/go-co-op/gocron"
 	"log"
 	"time"
 
@@ -63,7 +64,7 @@ AND NOT is_paid;`).Rows()
 // RunTax godoc
 //
 //	@Summary		Pokretanje obračuna poreza
-//	@Description	Endpoint namenjen za pokretanje procesa obračuna poreza za korisnike. Trenutno nije implementiran i uvek vraća grešku 500.
+//	@Description	Endpoint namenjen za pokretanje procesa obračuna poreza za korisnike. Trenutno je implementiran i nemam pojma sta vraca.
 //	@Tags			Tax
 //	@Produce		json
 //	@Success		202	{object}	types.Response	"Zahtev za obračun poreza je primljen"
@@ -219,10 +220,31 @@ func (tc *TaxController) GetAggregatedTaxForUser(c *fiber.Ctx) error {
 	})
 }
 
+func RunTaxCronJob(taxController *TaxController) {
+	scheduler := gocron.NewScheduler(time.UTC)
+	_, err := scheduler.Every(1).Month(1).At("23:59").Do(func() {
+		err := taxController.RunTax(nil) // Pass nil if no context is required
+		if err != nil {
+			log.Printf("Error running tax calculation: %v", err)
+		} else {
+			log.Println("Tax calculation completed successfully.")
+		}
+	})
+	if err != nil {
+		log.Fatalf("Failed to schedule RunTax: %v", err)
+	}
+
+	// Start the scheduler in a separate goroutine
+	go scheduler.StartBlocking()
+}
+
 func InitTaxRoutes(app *fiber.App) {
 	taxController := NewTaxController()
 
 	app.Get("/tax", middlewares.Auth, middlewares.DepartmentCheck("SUPERVISOR"), taxController.GetTaxForAllUsers)
 	app.Post("/tax/run", middlewares.Auth, middlewares.DepartmentCheck("SUPERVISOR"), taxController.RunTax)
 	app.Get("/tax/dashboard/:userID", middlewares.Auth, taxController.GetAggregatedTaxForUser)
+
+	// Start the cron job
+	RunTaxCronJob(taxController)
 }
