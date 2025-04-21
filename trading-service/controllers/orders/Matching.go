@@ -349,6 +349,9 @@ func executePartial(order1 *types.Order, price float64, tx *gorm.DB) int {
 			continue
 		}
 
+		total := price * float64(matchQty)
+		fee := CalculateFee(order, total)
+
 		err = tx.Debug().Transaction(func(tx *gorm.DB) error {
 			txn := types.Transaction{
 				OrderID:      order.ID,
@@ -357,7 +360,8 @@ func executePartial(order1 *types.Order, price float64, tx *gorm.DB) int {
 				SecurityID:   order.SecurityID,
 				Quantity:     matchQty,
 				PricePerUnit: price,
-				TotalPrice:   price * float64(matchQty),
+				TotalPrice:   total,
+				Fee:          fee,
 			}
 			if err := tx.Debug().Create(&txn).Error; err != nil {
 				fmt.Printf("Greska pri kreiranju transakcije: %v\n", err)
@@ -410,8 +414,6 @@ func executePartial(order1 *types.Order, price float64, tx *gorm.DB) int {
 			}
 
 			uid := fmt.Sprintf("ORDER-match-%d-%d", order.ID, time.Now().Unix())
-			total := price * float64(matchQty)
-			fee := CalculateFee(order, total)
 			initiationDto := dto.OrderTransactionInitiationDTO{
 				Uid:             uid,
 				SellerAccountId: getSellerAccountID(order, match),
