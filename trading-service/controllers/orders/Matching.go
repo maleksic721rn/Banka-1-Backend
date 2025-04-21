@@ -390,12 +390,12 @@ func executePartial(order1 *types.Order, price float64, tx *gorm.DB) int {
 				return err
 			}
 
-			if err := updatePortfolio(getBuyerID(order, match), order.SecurityID, matchQty, tx); err != nil {
+			if err := updatePortfolio(getBuyerID(order, match), order.SecurityID, matchQty, price, tx); err != nil {
 				fmt.Printf("Greska pri updatePortfolio za buyer-a: %v\n", err)
 				return err
 			}
 
-			if err := updatePortfolio(getSellerID(order, match), order.SecurityID, -matchQty, tx); err != nil {
+			if err := updatePortfolio(getSellerID(order, match), order.SecurityID, -matchQty, price, tx); err != nil {
 				fmt.Printf("Greska pri updatePortfolio za seller-a: %v\n", err)
 				return err
 			}
@@ -443,7 +443,7 @@ func executePartial(order1 *types.Order, price float64, tx *gorm.DB) int {
 	return 0
 }
 
-func updatePortfolio(userID uint, securityID uint, delta int, tx *gorm.DB) error {
+func updatePortfolio(userID uint, securityID uint, delta int, price float64, tx *gorm.DB) error {
 	var portfolio types.Portfolio
 	err := tx.Where("user_id = ? AND security_id = ?", userID, securityID).First(&portfolio).Error
 
@@ -453,6 +453,7 @@ func updatePortfolio(userID uint, securityID uint, delta int, tx *gorm.DB) error
 				UserID:     userID,
 				SecurityID: securityID,
 				Quantity:   delta,
+				PurchasePrice: price,
 			}
 			if err := tx.Create(&portfolio).Error; err != nil {
 				return fmt.Errorf("Portfolio greška u create: user=%d, security=%d, delta=%d | %w\n", userID, securityID, delta, err)
