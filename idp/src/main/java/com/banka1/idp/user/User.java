@@ -21,8 +21,8 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * Implements CredentialsContainer which erases the password field. Care should be taken when
- * managing this entity to avoid unintended persistence of null passwords after security operations.
+ * Implements CredentialsContainer, which erases the password field. Care should be taken when
+ * managing this entity to avoid the unintended persistence of null passwords after security operations.
  */
 @Slf4j
 @Entity
