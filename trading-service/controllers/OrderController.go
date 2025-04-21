@@ -3,7 +3,9 @@ package controllers
 import (
 	"banka1.com/controllers/orders"
 	"banka1.com/db"
+	"banka1.com/dto"
 	"banka1.com/middlewares"
+	"banka1.com/services"
 	"banka1.com/types"
 	"encoding/json"
 	"fmt"
@@ -100,7 +102,7 @@ func (oc *OrderController) GetOrders(c *fiber.Ctx) error {
 	if "all" == filterStatus {
 		err = db.DB.Find(&ordersList).Error
 	} else {
-		err = db.DB.Find(&ordersList, "status = ?", filterStatus).Error
+		err = db.DB.Find(&ordersList, "lower(status) = ?", filterStatus).Error
 	}
 	if err != nil {
 		return c.Status(400).JSON(types.Response{
@@ -115,6 +117,70 @@ func (oc *OrderController) GetOrders(c *fiber.Ctx) error {
 	return c.JSON(types.Response{
 		Success: true,
 		Data:    responses,
+	})
+}
+
+type PaginatedOrders struct {
+	Orders     []types.OrderResponse `json:"orders"`
+	TotalCount int64                 `json:"totalCount"`
+}
+
+// GetOrdersPaged godoc
+//
+//	@Summary		Preuzimanje paginiranih naloga
+//	@Description	Vraća stranicu naloga sa zadatim brojem po stranici i opcionim filtriranjem po statusu.
+//	@Tags			Orders
+//	@Produce		json
+//	@Param			page			query		int											false	"Broj stranice (počinje od 1)"					default(1)
+//	@Param			size			query		int											false	"Broj naloga po stranici"						default(20)
+//	@Param			filter_status	query		string										false	"Status naloga za filtriranje"					example(pending)
+//	@Success		200				{object}	types.Response{data=controllers.PaginatedOrders}	"Uspešno preuzeta stranica naloga"
+//	@Failure		500				{object}	types.Response								"Greška pri preuzimanju naloga iz baze"
+//	@Router			/orders/paged [get]
+func (oc *OrderController) GetOrdersPaged(c *fiber.Ctx) error {
+	page := c.QueryInt("page", 1)
+	size := c.QueryInt("size", 20)
+	filterStatus := strings.ToLower(c.Query("filter_status", "all"))
+
+	if page < 1 {
+		page = 1
+	}
+	if size < 1 || size > 100 {
+		size = 20
+	}
+	offset := (page - 1) * size
+
+	var totalCount int64
+	query := db.DB.Model(&types.Order{})
+	if filterStatus != "all" {
+		query = query.Where("lower(status) = ?", filterStatus)
+	}
+	if err := query.Count(&totalCount).Error; err != nil {
+		return c.Status(500).JSON(types.Response{
+			Success: false,
+			Error:   "Greška pri brojanju naloga: " + err.Error(),
+		})
+	}
+
+	var ordersList []types.Order
+	if err := query.Offset(offset).Limit(size).Find(&ordersList).Error; err != nil {
+		return c.Status(500).JSON(types.Response{
+			Success: false,
+			Error:   "Greška pri preuzimanju naloga: " + err.Error(),
+		})
+	}
+
+	responses := make([]types.OrderResponse, len(ordersList))
+	for i, order := range ordersList {
+		responses[i] = OrderToOrderResponse(order)
+	}
+
+	return c.JSON(types.Response{
+		Success: true,
+		Data: PaginatedOrders{
+			Orders:     responses,
+			TotalCount: totalCount,
+		},
 	})
 }
 
@@ -198,24 +264,7 @@ func (oc *OrderController) CreateOrder(c *fiber.Ctx) error {
 
 	// Provera dostupnosti unita ako se order odobrava odmah
 	if status == "approved" {
-		var security types.Security
-		if err := db.DB.First(&security, orderRequest.SecurityID).Error; err != nil {
-			return c.Status(404).JSON(types.Response{
-				Success: false,
-				Error:   "Hartija nije pronađena",
-			})
-		}
-
-		if strings.ToLower(orderRequest.Direction) == "buy" {
-			if orderRequest.AON {
-				if orderRequest.Quantity > int(security.Volume) {
-					return c.Status(400).JSON(types.Response{
-						Success: false,
-						Error:   fmt.Sprintf("Nedovoljno dostupnih unita (%d dostupno)", security.Volume),
-					})
-				}
-			}
-		} else if strings.ToLower(orderRequest.Direction) == "sell" {
+		if strings.ToLower(orderRequest.Direction) == "sell" {
 			var portfolio types.Portfolio
 			if err := db.DB.Where("user_id = ? AND security_id = ?", orderRequest.UserID, orderRequest.SecurityID).First(&portfolio).Error; err != nil {
 				return c.Status(400).JSON(types.Response{
@@ -223,7 +272,7 @@ func (oc *OrderController) CreateOrder(c *fiber.Ctx) error {
 					Error:   "Nemate ovu hartiju u portfoliju",
 				})
 			}
-			if orderRequest.AON && portfolio.Quantity < orderRequest.Quantity {
+			if portfolio.Quantity < orderRequest.Quantity {
 				return c.Status(400).JSON(types.Response{
 					Success: false,
 					Error:   fmt.Sprintf("Nemate dovoljno hartija za AON prodaju (imate %d, traženo %d)", portfolio.Quantity, orderRequest.Quantity),
@@ -256,6 +305,7 @@ func (oc *OrderController) CreateOrder(c *fiber.Ctx) error {
 		Direction:         orderRequest.Direction,
 		Status:            status, // TODO: pribaviti needs approval vrednost preko token-a?
 		ApprovedBy:        approvedBy,
+		LastModified:      time.Now().Unix(),
 		IsDone:            false,
 		RemainingParts:    &orderRequest.Quantity,
 		AfterHours:        false, // TODO: dodati check za ovo
@@ -269,6 +319,14 @@ func (oc *OrderController) CreateOrder(c *fiber.Ctx) error {
 			Success: false,
 			Error:   "Neuspelo kreiranje: " + err.Error(),
 		})
+	}
+
+	if order.Status == "approved" {
+		go orders.MatchOrder(order)
+	}
+
+	if strings.ToLower(order.Direction) == "sell" && order.Status == "approved" {
+		_ = orders.UpdateAvailableVolume(order.SecurityID)
 	}
 
 	if orderRequest.Margin {
@@ -368,7 +426,7 @@ func ApproveDeclineOrder(c *fiber.Ctx, decline bool) error {
 	if decline {
 		order.Status = "declined"
 	} else {
-		// Provera dostupnosti unita pre odobrenja
+		// Proveri da li je hartiji istekao settlementDate
 		var security types.Security
 		if err := db.DB.First(&security, order.SecurityID).Error; err != nil {
 			return c.Status(404).JSON(types.Response{
@@ -376,16 +434,27 @@ func ApproveDeclineOrder(c *fiber.Ctx, decline bool) error {
 				Error:   "Hartija nije pronađena",
 			})
 		}
-
-		if strings.ToLower(order.Direction) == "buy" {
-			// Provera da li ima dostupnih unita za kupovinu
-			if order.Quantity > int(security.Volume) {
+		if security.SettlementDate != nil {
+			parsed, err := time.Parse("2006-01-02", *security.SettlementDate)
+			if err != nil {
 				return c.Status(400).JSON(types.Response{
 					Success: false,
-					Error:   fmt.Sprintf("Nedovoljno dostupnih unita (%d dostupno)", security.Volume),
+					Error:   "Nevažeći settlement date format",
 				})
 			}
-		} else if strings.ToLower(order.Direction) == "sell" {
+
+			now := time.Now().Truncate(24 * time.Hour)
+			parsed = parsed.Truncate(24 * time.Hour)
+
+			if parsed.Before(now) {
+				return c.Status(400).JSON(types.Response{
+					Success: false,
+					Error:   "Nije moguće odobriti order za hartiju kojoj je istekao settlement date",
+				})
+			}
+		}
+
+		if strings.ToLower(order.Direction) == "sell" {
 			// Provera da li korisnik ima dovoljno hartija u portfoliju
 			var portfolio types.Portfolio
 			if err := db.DB.Where("user_id = ? AND security_id = ?", order.UserID, order.SecurityID).First(&portfolio).Error; err != nil {
@@ -403,9 +472,19 @@ func ApproveDeclineOrder(c *fiber.Ctx, decline bool) error {
 		}
 
 		order.Status = "approved"
-		order.ApprovedBy = new(uint)
-		*order.ApprovedBy = 0
+
+		if uidRaw := c.Locals("user_id"); uidRaw != nil {
+			if uid, ok := uidRaw.(float64); ok {
+				id := uint(uid)
+				order.ApprovedBy = &id
+			}
+		}
+		order.LastModified = time.Now().Unix()
 		db.DB.Save(&order)
+
+		if strings.ToLower(order.Direction) == "sell" {
+			_ = orders.UpdateAvailableVolume(order.SecurityID)
+		}
 
 		orders.MatchOrder(order)
 
@@ -461,12 +540,143 @@ func (oc *OrderController) ApproveOrder(c *fiber.Ctx) error {
 	return ApproveDeclineOrder(c, false)
 }
 
+// CancelOrder godoc
+//
+//	@Summary		Otkazivanje naloga
+//	@Description	Menja status naloga u 'cancelled' ukoliko još nije izvršen.
+//	@Tags			Orders
+//	@Produce		json
+//	@Param			id	path	int	true	"ID naloga koji se otkazuje"
+//	@Security		BearerAuth
+//	@Security		BearerAuth
+//	@Success		200	{object}	types.Response{data=string}	"Nalog uspešno otkazan"
+//	@Failure		400	{object}	types.Response					"Nevalidan ID ili nalog je već završen"
+//	@Failure		403	{object}	types.Response					"Nedovoljne privilegije (ne može se otkazati tuđi nalog)"
+//	@Failure		404	{object}	types.Response					"Nalog sa datim ID-jem ne postoji"
+//	@Failure		500	{object}	types.Response					"Greška prilikom otkazivanja naloga"
+//	@Router			/orders/{id}/cancel [post]
+func (oc *OrderController) CancelOrder(c *fiber.Ctx) error {
+	id, err := c.ParamsInt("id", -1)
+	if err != nil || id <= 0 {
+		return c.Status(400).JSON(types.Response{Success: false, Error: "Nevalidan ID"})
+	}
+
+	var order types.Order
+	if err := db.DB.First(&order, id).Error; err != nil {
+		return c.Status(404).JSON(types.Response{Success: false, Error: "Order nije pronađen"})
+	}
+
+	userID := uint(c.Locals("user_id").(float64))
+	if order.UserID != userID {
+		return c.Status(403).JSON(types.Response{Success: false, Error: "Nije dozvoljeno otkazati tuđi order"})
+	}
+
+	if order.IsDone || order.Status == "done" || order.Status == "cancelled" {
+		return c.Status(400).JSON(types.Response{Success: false, Error: "Order je već izvršen ili otkazan"})
+	}
+
+	order.Status = "cancelled"
+	order.LastModified = time.Now().Unix()
+	if err := db.DB.Save(&order).Error; err != nil {
+		return c.Status(500).JSON(types.Response{Success: false, Error: "Greška pri otkazivanju ordera"})
+	}
+
+	return c.JSON(types.Response{Success: true, Data: fmt.Sprintf("Order %d je uspešno otkazan", order.ID)})
+}
+
+// GetRealizedProfit godoc
+//
+//	@Summary		Obračun realizovanog profita
+//	@Description	Računa ukupni ostvareni profit korisnika na osnovu izvršenih transakcija (FIFO).
+//	@Tags			Orders
+//	@Produce		json
+//	@Param			id	path	int	true	"ID korisnika za kog se računa profit"
+//	@Success		200	{object}	types.Response{data=dto.RealizedProfitResponse}	"Uspešno vraćen obračun profita"
+//	@Failure		400	{object}	types.Response										"Nevalidan ID korisnika"
+//	@Failure		404	{object}	types.Response										"Korisnik nema transakcija, nije moguće izračunati profit"
+//	@Failure		500	{object}	types.Response										"Greška prilikom obračuna profita"
+//	@Router			/profit/{id} [get]
+func (oc *OrderController) GetRealizedProfit(c *fiber.Ctx) error {
+	userID, err := c.ParamsInt("id", -1)
+	if err != nil || userID <= 0 {
+		return c.Status(400).JSON(types.Response{
+			Success: false,
+			Error:   "Nevalidan ID korisnika",
+		})
+	}
+
+	profit, err := services.CalculateRealizedProfit(uint(userID))
+	if err != nil {
+		// Ako korisnik nema transakcija, vrati 404
+		if err.Error() == "Korisnik nema transakcija. Ne može se izračunati profit." {
+			return c.Status(404).JSON(types.Response{
+				Success: false,
+				Error:   err.Error(),
+			})
+		}
+		// Sve ostalo tretiraj kao internu grešku
+		return c.Status(500).JSON(types.Response{
+			Success: false,
+			Error:   "Greška prilikom obračuna profita: " + err.Error(),
+		})
+	}
+
+	return c.JSON(types.Response{
+		Success: true,
+		Data:    profit,
+	})
+}
+
+// InitiateOrderTransaction godoc
+//
+//	@Summary		Iniciranje transakcije za nalog
+//	@Description	Pokreće inicijalizaciju transfera novca između naloga za izvršavanje matched ordera.
+//	@Tags			Orders
+//	@Accept			json
+//	@Produce		json
+//	@Param			OrderTransactionInitiationDTO	body	dto.OrderTransactionInitiationDTO	true	"Podaci o inicijalizaciji transakcije"
+//	@Success		200	{string}	string	"Uspešno inicirana transakcija"
+//	@Failure		400	{object}	types.Response	"Nevalidan zahtev"
+//	@Failure		500	{object}	types.Response	"Interna greška servera"
+//	@Router			/orders/initiate-transaction [post]
+func (oc *OrderController) InitiateOrderTransaction(c *fiber.Ctx) error {
+	initDto := new(dto.OrderTransactionInitiationDTO)
+	if err := c.BodyParser(initDto); err != nil {
+		return fiber.ErrBadRequest
+	}
+
+	token, err := middlewares.NewOrderTokenDirect(
+		initDto.Uid,
+		initDto.BuyerAccountId,
+		initDto.SellerAccountId,
+		initDto.Amount,
+	)
+	if err != nil {
+		return fiber.ErrInternalServerError
+	}
+
+	url := os.Getenv("BANKING_SERVICE") + "/order/initiate/" + token
+
+	agent := fiber.Post(url)
+	statusCode, _, errs := agent.Bytes()
+
+	if len(errs) != 0 || statusCode != 200 {
+		return fiber.ErrInternalServerError
+	}
+
+	return c.SendStatus(fiber.StatusOK)
+}
+
 func InitOrderRoutes(app *fiber.App) {
 	orderController := NewOrderController()
 
+	app.Get("/orders/paged", orderController.GetOrdersPaged)
 	app.Get("/orders/:id", orderController.GetOrderByID)
 	app.Get("/orders", orderController.GetOrders)
 	app.Post("/orders", middlewares.Auth, orderController.CreateOrder)
 	app.Post("/orders/:id/decline", middlewares.Auth, middlewares.DepartmentCheck("SUPERVISOR"), orderController.DeclineOrder)
 	app.Post("/orders/:id/approve", middlewares.Auth, middlewares.DepartmentCheck("SUPERVISOR"), orderController.ApproveOrder)
+	app.Post("/orders/:id/cancel", middlewares.Auth, orderController.CancelOrder)
+	app.Get("/profit/:id", orderController.GetRealizedProfit)
+	app.Post("/orders/initiate-transaction", orderController.InitiateOrderTransaction)
 }

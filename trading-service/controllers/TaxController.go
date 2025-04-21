@@ -1,6 +1,8 @@
 package controllers
 
 import (
+	"fmt"
+	"log"
 	"time"
 
 	"banka1.com/db"
@@ -68,9 +70,79 @@ AND NOT is_paid;`).Rows()
 //	@Failure		500	{object}	types.Response	"Greska"
 //	@Router			/tax/run [post]
 func (tc *TaxController) RunTax(c *fiber.Ctx) error {
-	return c.Status(500).JSON(types.Response{
-		Success: false,
-		Error:   "Nije implementirano.",
+	now := time.Now()
+	startOfMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+	endOfMonth := startOfMonth.AddDate(0, 1, 0)
+
+	rows, err := db.DB.Raw(`
+		SELECT t.id, t.user_id, t.account_id, t.buy_price, t.sell_price, t.currency
+		FROM transactions t
+		WHERE t.sell_price > t.buy_price
+		  AND t.created_at >= ?
+		  AND t.created_at < ?
+		  AND t.tax_paid = FALSE
+	`, startOfMonth, endOfMonth).Rows()
+
+	if err != nil {
+		return c.Status(500).JSON(types.Response{
+			Success: false,
+			Error:   "Error fetching transactions: " + err.Error(),
+		})
+	}
+	defer rows.Close()
+
+	var failedTransactions []int64
+	for rows.Next() {
+		var transaction struct {
+			ID        int64
+			UserID    int64
+			AccountID int64
+			BuyPrice  float64
+			SellPrice float64
+			Currency  string
+		}
+		if err := rows.Scan(&transaction.ID, &transaction.UserID, &transaction.AccountID, &transaction.BuyPrice, &transaction.SellPrice, &transaction.Currency); err != nil {
+			return c.Status(500).JSON(types.Response{
+				Success: false,
+				Error:   "Error reading transaction data: " + err.Error(),
+			})
+		}
+
+		profit := transaction.SellPrice - transaction.BuyPrice
+		tax := profit * 0.15
+
+		err = db.DB.Exec(`
+			UPDATE accounts
+			SET balance = balance - ?
+			WHERE id = ?
+			  AND balance >= ?
+		`, tax, transaction.AccountID, tax).Error
+		if err != nil {
+			failedTransactions = append(failedTransactions, transaction.ID)
+			continue
+		}
+
+		err = db.DB.Exec(`
+			UPDATE transactions
+			SET tax_paid = TRUE
+			WHERE id = ?
+		`, transaction.ID).Error
+		if err != nil {
+			failedTransactions = append(failedTransactions, transaction.ID)
+			continue
+		}
+	}
+
+	if len(failedTransactions) > 0 {
+		return c.Status(207).JSON(types.Response{
+			Success: false,
+			Error:   "Some transactions failed to process: " + fmt.Sprint(failedTransactions),
+		})
+	}
+
+	return c.Status(202).JSON(types.Response{
+		Success: true,
+		Data:    "Tax calculation and deduction completed successfully.",
 	})
 }
 
@@ -85,7 +157,7 @@ func (tc *TaxController) RunTax(c *fiber.Ctx) error {
 //	@Failure		400		{object}	types.Response									"Neispravan ID korisnika (nije validan broj ili <= 0)"
 //	@Failure		500		{object}	types.Response									"Interna greška servera pri dohvatanju podataka iz baze"
 //	@Router			/tax/dashboard/{userID} [get]
-func GetAggregatedTaxForUser(c *fiber.Ctx) error {
+func (tc *TaxController) GetAggregatedTaxForUser(c *fiber.Ctx) error {
 	userID, err := c.ParamsInt("userID")
 	if err != nil || userID <= 0 {
 		return c.Status(400).JSON(types.Response{
@@ -98,18 +170,34 @@ func GetAggregatedTaxForUser(c *fiber.Ctx) error {
 	yearMonth := time.Now().Format("2006-01")
 
 	var paid float64
-	db.DB.Raw(`
+	err = db.DB.Raw(`
 		SELECT COALESCE(SUM(tax_amount), 0)
 		FROM tax
-		WHERE is_paid = 1 AND user_id = ? AND substr(created_at, 1, 4) = ?
-	`, userID, year).Scan(&paid)
+		WHERE is_paid = 1 AND user_id = ? AND substr(month_year, 1, 4) = ?
+	`, userID, year).Scan(&paid).Error
+
+	if err != nil {
+		log.Printf("Greška pri dohvatanju plaćenog poreza za user-a %d: %v", userID, err)
+		return c.Status(500).JSON(types.Response{
+			Success: false,
+			Error:   "Greška pri čitanju podataka iz baze",
+		})
+	}
 
 	var unpaid float64
-	db.DB.Raw(`
+	err = db.DB.Raw(`
 		SELECT COALESCE(SUM(tax_amount), 0)
 		FROM tax
-		WHERE is_paid = 0 AND user_id = ? AND substr(created_at, 1, 7) = ?
-	`, userID, yearMonth).Scan(&unpaid)
+		WHERE is_paid = 0 AND user_id = ? AND month_year = ?
+	`, userID, yearMonth).Scan(&unpaid).Error
+
+	if err != nil {
+		log.Printf("Greška pri dohvatanju neplaćenog poreza za user-a %d: %v", userID, err)
+		return c.Status(500).JSON(types.Response{
+			Success: false,
+			Error:   "Greška pri čitanju podataka iz baze",
+		})
+	}
 
 	var isActuary bool
 	db.DB.Raw(`
@@ -136,5 +224,5 @@ func InitTaxRoutes(app *fiber.App) {
 
 	app.Get("/tax", middlewares.Auth, middlewares.DepartmentCheck("SUPERVISOR"), taxController.GetTaxForAllUsers)
 	app.Post("/tax/run", middlewares.Auth, middlewares.DepartmentCheck("SUPERVISOR"), taxController.RunTax)
-	app.Get("/tax/dashboard/:userID", middlewares.Auth, GetAggregatedTaxForUser)
+	app.Get("/tax/dashboard/:userID", middlewares.Auth, taxController.GetAggregatedTaxForUser)
 }

@@ -90,7 +90,7 @@ func (sc *SecuritiesController) GetUserSecurities(c *fiber.Ctx) error {
 
 		var lastMod int64
 		err := db.DB.
-			Table("order").
+			Model(&types.Order{}).
 			Select("MAX(last_modified)").
 			Where("user_id = ? AND security_id = ?", p.UserID, p.SecurityID).
 			Scan(&lastMod).Error
@@ -100,10 +100,11 @@ func (sc *SecuritiesController) GetUserSecurities(c *fiber.Ctx) error {
 		}
 
 		item := dto.PortfolioSecurityDTO{
+			PortfolioID:  p.ID,
 			SecurityID:   p.SecurityID,
 			Ticker:       p.Security.Ticker,
 			Type:         p.Security.Type,
-			Symbol:       p.Security.Ticker, // koristiš isto kao symbol
+			Symbol:       p.Security.Ticker,
 			Amount:       p.Quantity,
 			Price:        p.PurchasePrice,
 			Profit:       profit,
@@ -120,6 +121,17 @@ func (sc *SecuritiesController) GetUserSecurities(c *fiber.Ctx) error {
 	})
 }
 
+// /security/securityId/volume
+
+// GetAvailableSecurities godoc
+//
+//	@Summary		Dohvatanje svih dostupnih hartija
+//	@Description	Vraća listu svih hartija od vrednosti koje su trenutno dostupne na tržištu.
+//	@Tags			Securities
+//	@Produce		json
+//	@Success		200	{object}	types.Response{data=[]types.Security}	"Lista dostupnih hartija od vrednosti"
+//	@Failure		500	{object}	types.Response							"Greška pri dohvatanju podataka iz baze"
+//	@Router			/securities/available [get]
 func (sc *SecuritiesController) GetAvailableSecurities(c *fiber.Ctx) error {
 	var securities []types.Security
 
@@ -141,6 +153,14 @@ func (sc *SecuritiesController) GetAvailableSecurities(c *fiber.Ctx) error {
 func listingToSecurity(l *types.Listing) (*types.Security, error) {
 	var security types.Security
 	previousClose := getPreviousCloseForListing(l.ID)
+
+	// Dohvati volume iz baze za dati listing ID
+	var dbSec types.Security
+	if err := db.DB.Select("volume").Where("id = ?", l.ID).First(&dbSec).Error; err != nil {
+		// Ako nije pronađen, podrazumevano stavi na 0
+		dbSec.Volume = 0
+	}
+
 	switch l.Type {
 	case "Stock":
 		{
@@ -153,7 +173,7 @@ func listingToSecurity(l *types.Listing) (*types.Security, error) {
 				LastPrice:     float64(l.Price),
 				AskPrice:      float64(l.Ask),
 				BidPrice:      float64(l.Bid),
-				Volume:        int64(l.ContractSize * 10),
+				Volume:        dbSec.Volume,
 				ContractSize:  int64(l.ContractSize),
 				PreviousClose: previousClose,
 			}
@@ -169,7 +189,7 @@ func listingToSecurity(l *types.Listing) (*types.Security, error) {
 				LastPrice:     float64(l.Price),
 				AskPrice:      float64(l.Ask),
 				BidPrice:      float64(l.Bid),
-				Volume:        int64(l.ContractSize * 10),
+				Volume:        dbSec.Volume,
 				ContractSize:  int64(l.ContractSize),
 				PreviousClose: previousClose,
 			}
@@ -190,7 +210,7 @@ func listingToSecurity(l *types.Listing) (*types.Security, error) {
 				LastPrice:      float64(l.Price),
 				AskPrice:       float64(l.Ask),
 				BidPrice:       float64(l.Bid),
-				Volume:         int64(l.ContractSize * 10),
+				Volume:         dbSec.Volume,
 				SettlementDate: &settlementDate,
 				ContractSize:   int64(l.ContractSize),
 				PreviousClose:  previousClose,
@@ -212,7 +232,7 @@ func listingToSecurity(l *types.Listing) (*types.Security, error) {
 				LastPrice:      float64(l.Price),
 				AskPrice:       float64(l.Ask),
 				BidPrice:       float64(l.Bid),
-				Volume:         int64(l.ContractSize * 10),
+				Volume:         dbSec.Volume,
 				StrikePrice:    &option.StrikePrice,
 				OptionType:     &option.OptionType,
 				SettlementDate: &settlementDate,

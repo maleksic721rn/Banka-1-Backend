@@ -1,21 +1,23 @@
 package com.banka1.banking.service.accountService;
 
+import com.banka1.banking.dto.CreateCompanyDTO;
 import com.banka1.banking.dto.CustomerDTO;
 import com.banka1.banking.dto.request.CreateAccountDTO;
 import com.banka1.banking.models.Account;
 import com.banka1.banking.models.Card;
-import com.banka1.banking.models.helper.AccountStatus;
-import com.banka1.banking.models.helper.AccountSubtype;
-import com.banka1.banking.models.helper.AccountType;
-import com.banka1.banking.models.helper.CurrencyType;
+import com.banka1.banking.models.Company;
+import com.banka1.banking.models.helper.*;
 import com.banka1.banking.repository.AccountRepository;
 import com.banka1.banking.services.AccountService;
 import com.banka1.banking.services.CardService;
+import com.banka1.banking.services.CompanyService;
 import com.banka1.banking.services.UserServiceCustomer;
 import com.banka1.common.listener.MessageHelper;
+import com.banka1.common.model.BusinessActivityCode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -43,6 +45,9 @@ public class CreateAccountTest {
     JmsTemplate jmsTemplate;
     @Mock
     MessageHelper messageHelper;
+
+    @Mock
+    CompanyService companyService;
 
     /*
     {
@@ -122,6 +127,59 @@ public class CreateAccountTest {
         assertEquals("400 BAD_REQUEST \"Nevalidna kombinacija vrste racuna i valute\"", exception.getMessage());
 
         verify(accountRepository, never()).save(any());
+    }
+
+    @Test
+    public void createAccountWithNewCompanyTest() {
+        createAccountDTO.setSubtype(AccountSubtype.BUSINESS);
+        acc.setSubtype(AccountSubtype.BUSINESS);
+
+        CreateCompanyDTO companyDTO = new CreateCompanyDTO();
+        String companyNumber = "12345678";
+        companyDTO.setCompanyNumber(companyNumber);
+        companyDTO.setVatNumber("123456789");
+        companyDTO.setAddress("Bulevar Banke 1");
+        companyDTO.setName("Test Company");
+        companyDTO.setBas(BusinessActivityCode.COMPUTER_PROGRAMMING);
+
+        createAccountDTO.setCompanyData(companyDTO);
+        createAccountDTO.setCreateCard(false);
+
+        when(userServiceCustomer.getCustomerById(createAccountDTO.getOwnerID())).thenReturn(customerDTO);
+        when(modelMapper.map(createAccountDTO, Account.class)).thenReturn(acc);
+
+        when(companyService.findByCompanyNumber(companyNumber)).thenReturn(null);
+
+        Company newCompany = new Company();
+        newCompany.setId(10L);
+        newCompany.setCompanyNumber(companyNumber);
+        newCompany.setName(companyDTO.getName());
+
+        when(companyService.createCompany(any(CreateCompanyDTO.class))).thenReturn(newCompany);
+
+        ArgumentCaptor<Account> accountCaptor = ArgumentCaptor.forClass(Account.class);
+        when(accountRepository.save(accountCaptor.capture())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Account result = accountService.createAccount(createAccountDTO, 5L);
+
+        assertNotNull(result);
+        assertNotNull(result.getCompany());
+        assertEquals(companyNumber, result.getCompany().getCompanyNumber());
+        assertEquals(customerDTO.getId(), result.getCompany().getOwnerID());
+
+        verify(userServiceCustomer, times(1)).getCustomerById(createAccountDTO.getOwnerID());
+        verify(modelMapper, times(1)).map(createAccountDTO, Account.class);
+        verify(companyService, times(1)).findByCompanyNumber(companyNumber); // Verify check was done
+        verify(companyService, times(1)).createCompany(any(CreateCompanyDTO.class)); // Verify creation was called
+        verify(accountRepository, times(1)).save(any(Account.class)); // Verify account was saved
+        verify(cardService, never()).createCard(any()); // Card creation was false
+
+        Account savedAccount = accountCaptor.getValue();
+        assertNotNull(savedAccount.getCompany());
+        assertEquals(companyNumber, savedAccount.getCompany().getCompanyNumber());
+        assertEquals(customerDTO.getId(), savedAccount.getCompany().getOwnerID()); // Verify ownerID on saved account's company reference
+        assertEquals(AccountSubtype.BUSINESS, savedAccount.getSubtype()); // Verify subtype
+
     }
 
 }

@@ -1,15 +1,16 @@
 package broker
 
 import (
-	"banka1.com/types"
 	"encoding/json"
 	"fmt"
 	"log"
 	"time"
+	"errors"
 
 	"banka1.com/db"
 	"banka1.com/dto"
 	"banka1.com/saga"
+	"banka1.com/types"
 
 	"github.com/go-stomp/stomp/v3"
 	"gorm.io/gorm"
@@ -121,65 +122,78 @@ func getActuary(id any) any {
 func handleOTCACK(data any) error {
 	dto := data.(*types.OTCTransactionACKDTO)
 
-	if dto.Failure {
-		log.Println("Saga failed:", dto.Message)
-		return nil
+	phase, exists, err := saga.StateManager.GetPhase(db.DB, dto.Uid)
+	if err != nil {
+		return err
 	}
-
-	log.Println("Saga progressed for", dto.Uid)
-
-	phase, exists := saga.StateManager.GetPhase(dto.Uid)
 	if !exists {
 		log.Printf("[SAGA] Nepoznat UID: %s", dto.Uid)
 		return nil
 	}
 
+	if dto.Failure {
+		log.Println("Saga failed:", dto.Message)
+		go func() {
+			for true {
+				err := rollbackOwnership(dto.Uid)
+				if err == nil {
+					break
+				}
+				log.Printf("Greska u rollbackOwnership (uid %v, poruka %v): %v", dto.Uid, dto.Message, err)
+				time.Sleep(3 * time.Second)
+			}
+		}()
+		return nil
+	}
+
+	log.Println("Saga progressed for", dto.Uid)
+
 	switch phase {
 
-	case saga.PhaseInit:
+	case types.PhaseInit:
 		log.Println("[SAGA] PhaseInit (ACK rezer. para) za", dto.Uid)
 		if err := removeOwnership(dto.Uid); err != nil {
 			log.Printf("Ownership REMOVE error: %v", err)
-			_ = SendOTCTransactionFailure(dto.Uid, "Ownership remove failed")
-			return err
+			go FailOTC(dto.Uid, "Ownership remove failed")
+			return nil
 		}
-		saga.StateManager.UpdatePhase(dto.Uid, saga.PhaseOwnershipRemoved)
-		return SendOTCTransactionSuccess(dto.Uid)
+		go successOTC(dto.Uid)
+		return nil
 
-	case saga.PhaseOwnershipRemoved:
+	case types.PhaseOwnershipRemoved:
 		log.Println("[SAGA] OwnershipRemove faza za", dto.Uid)
 		if err := assignOwnership(dto.Uid); err != nil {
 			log.Printf("Ownership ASSIGN error: %v", err)
-			_ = SendOTCTransactionFailure(dto.Uid, "Ownership assign failed")
-			return err
+			go FailOTC(dto.Uid, "Ownership assign failed")
+			return nil
 		}
-		saga.StateManager.UpdatePhase(dto.Uid, saga.PhaseOwnershipTransferred)
-		return SendOTCTransactionSuccess(dto.Uid)
+		go successOTC(dto.Uid)
+		return nil
 
-	case saga.PhaseOwnershipTransferred:
+	case types.PhaseOwnershipTransferred:
 		log.Println("[SAGA] OwnershipAssign faza za", dto.Uid)
-		saga.StateManager.UpdatePhase(dto.Uid, saga.PhaseVerified)
-		return SendOTCTransactionSuccess(dto.Uid)
+		saga.StateManager.UpdatePhase(db.DB, dto.Uid, types.PhaseVerified)
+		go successOTC(dto.Uid)
+		return nil
 
-	case saga.PhaseVerified:
+	case types.PhaseVerified:
 		log.Println("[SAGA] FinalCheck faza za", dto.Uid)
 		if err := verifyFinalState(dto.Uid); err != nil {
 			log.Printf("Finalna provera neuspešna: %v", err)
-			_ = SendOTCTransactionFailure(dto.Uid, "Finalna provera neuspešna: "+err.Error())
-			if err := rollbackOwnership(dto.Uid); err != nil {
-				log.Printf("Rollback ownership nije uspeo: %v", err)
-			}
-			return err
+			go FailOTC(dto.Uid, "Finalna provera neuspešna: "+err.Error())
+			return nil
 		}
-
-		saga.StateManager.Remove(dto.Uid)
-		log.Println("[SAGA] Uspešno završena saga za", dto.Uid)
 
 		if err := markContractAsExercised(dto.Uid); err != nil {
 			log.Printf("Greška prilikom označavanja ugovora kao izvršenog: %v", err)
+			go FailOTC(dto.Uid, fmt.Sprintf("Greška prilikom označavanja ugovora kao izvršenog: %v", err))
+			return nil
 		}
 
-		return SendOTCTransactionSuccess(dto.Uid)
+		log.Println("[SAGA] Uspešno završena saga za", dto.Uid)
+
+		go successOTC(dto.Uid)
+		return nil
 
 	default:
 		log.Printf("Nepoznata faza SAGA-e za uid: %s", dto.Uid)
@@ -209,14 +223,14 @@ func removeOwnership(uid string) error {
 		sellerPortfolio.Quantity -= contract.Quantity
 		sellerPortfolio.PublicCount -= contract.Quantity
 		if sellerPortfolio.PublicCount < 0 {
-			sellerPortfolio.PublicCount = 0
+			return fmt.Errorf("PublicCount je postao negativan")
 		}
 
 		if err := tx.Save(&sellerPortfolio).Error; err != nil {
 			return fmt.Errorf("Greška prilikom ažuriranja portfolija prodavca: %w", err)
 		}
 
-		return nil
+		return saga.StateManager.UpdatePhase(tx, uid, types.PhaseOwnershipRemoved)
 	})
 }
 
@@ -227,6 +241,7 @@ func assignOwnership(uid string) error {
 			return fmt.Errorf("Neuspešno pronalaženje ugovora: %w", err)
 		}
 
+		/*
 		buyerPortfolio := types.Portfolio{
 			UserID:        contract.BuyerID,
 			SecurityID:    contract.SecurityID,
@@ -234,13 +249,77 @@ func assignOwnership(uid string) error {
 			PurchasePrice: contract.StrikePrice,
 			PublicCount:   0,
 		}
+		*/
 
-		if err := tx.Create(&buyerPortfolio).Error; err != nil {
-			return fmt.Errorf("Greška prilikom kreiranja portfolija kupca: %w", err)
+		var portfolio types.Portfolio
+		err := tx.Where("user_id = ? AND security_id = ?", contract.BuyerID, contract.SecurityID).First(&portfolio).Error
+
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				portfolio = types.Portfolio{
+					UserID:        contract.BuyerID,
+					SecurityID:    contract.SecurityID,
+					Quantity:      0,
+					PurchasePrice: contract.StrikePrice,
+					PublicCount:   0,
+				}
+				if err := tx.Create(&portfolio).Error; err != nil {
+					return fmt.Errorf("Greška prilikom kreiranja portfolija kupca: %w", err)
+				}
+			} else {
+				return fmt.Errorf("Greška prilikom ažuriranja portfolija kupca: %w", err)
+			}
 		}
 
-		return nil
+		portfolio.Quantity += contract.Quantity
+		if err := tx.Save(&portfolio).Error; err != nil {
+			return fmt.Errorf("Greška prilikom ažuriranja portfolija kupca: %w", err)
+		}
+
+		return saga.StateManager.UpdatePhase(tx, uid, types.PhaseOwnershipTransferred)
 	})
+}
+
+func successOTC(uid string) {
+	for true {
+		err := SendOTCTransactionSuccess(uid)
+		if err == nil {
+			break
+		}
+		log.Printf("Greska u SendOTCTransactionSuccess (uid %v): %v", uid, err)
+		time.Sleep(3 * time.Second)
+	}
+}
+
+func FailAllOTC() {
+	var states []types.OTCSagaState
+
+	if err := db.DB.Find(&states).Error; err != nil {
+		log.Fatalf("Greska pri pristupanju transakcijama u bazi: %v", err)
+	}
+
+	for _, state := range states {
+		FailOTC(state.UID, "Ostala nakon pada servisa")
+	}
+}
+
+func FailOTC(uid, message string) {
+	for true {
+		err := rollbackOwnership(uid)
+		if err == nil {
+			break
+		}
+		log.Printf("Greska u rollbackOwnership (uid %v, poruka %v): %v", uid, message, err)
+		time.Sleep(3 * time.Second)
+	}
+	for true {
+		err := SendOTCTransactionFailure(uid, message)
+		if err == nil {
+			break
+		}
+		log.Printf("Greska u SendOTCTransactionFailure (uid %v, poruka %v): %v", uid, message, err)
+		time.Sleep(3 * time.Second)
+	}
 }
 
 func rollbackOwnership(uid string) error {
@@ -250,35 +329,49 @@ func rollbackOwnership(uid string) error {
 			return fmt.Errorf("Neuspešno pronalaženje ugovora: %w", err)
 		}
 
-		var sellerPortfolio types.Portfolio
-		if err := tx.First(&sellerPortfolio, contract.PortfolioID).Error; err == nil {
-			sellerPortfolio.Quantity += contract.Quantity
-			sellerPortfolio.PublicCount += contract.Quantity
-			if err := tx.Save(&sellerPortfolio).Error; err != nil {
-				return fmt.Errorf("Greška prilikom vraćanja portfolija prodavcu: %w", err)
-			}
+		phase, exists, err := saga.StateManager.GetPhase(tx, uid)
+
+		if err != nil {
+			return fmt.Errorf("Neuspešno pronalaženje saga stanja: %w", err)
 		}
 
-		// VODITI RACUNA O TOME DA LI JE TO DOBAR PORTFOLIO ZA BRISANJE
-		var buyerPortfolio types.Portfolio
-		err := tx.Where("user_id = ? AND security_id = ?", contract.BuyerID, contract.SecurityID).First(&buyerPortfolio).Error
-		if err == nil {
-			if buyerPortfolio.Quantity < contract.Quantity {
-				return fmt.Errorf("Kupčev portfolio ima manje hartija nego što je predviđeno za rollback")
-			}
-			buyerPortfolio.Quantity -= contract.Quantity
-			if buyerPortfolio.Quantity == 0 {
-				if err := tx.Delete(&buyerPortfolio).Error; err != nil {
-					return fmt.Errorf("Greška prilikom brisanja portfolija kupca: %w", err)
-				}
-			} else {
-				if err := tx.Save(&buyerPortfolio).Error; err != nil {
-					return fmt.Errorf("Greška prilikom ažuriranja portfolija kupca: %w", err)
+		if !exists {
+			return nil
+		}
+
+		if phase >= types.PhaseOwnershipRemoved {
+			var sellerPortfolio types.Portfolio
+			if err := tx.First(&sellerPortfolio, contract.PortfolioID).Error; err == nil {
+				sellerPortfolio.Quantity += contract.Quantity
+				sellerPortfolio.PublicCount += contract.Quantity
+				if err := tx.Save(&sellerPortfolio).Error; err != nil {
+					return fmt.Errorf("Greška prilikom vraćanja portfolija prodavcu: %w", err)
 				}
 			}
 		}
 
-		return nil
+		if phase >= types.PhaseOwnershipTransferred {
+			// VODITI RACUNA O TOME DA LI JE TO DOBAR PORTFOLIO ZA BRISANJE
+			var buyerPortfolio types.Portfolio
+			err = tx.Where("user_id = ? AND security_id = ?", contract.BuyerID, contract.SecurityID).First(&buyerPortfolio).Error
+			if err == nil {
+				if buyerPortfolio.Quantity < contract.Quantity {
+					return fmt.Errorf("Kupčev portfolio ima manje hartija nego što je predviđeno za rollback")
+				}
+				buyerPortfolio.Quantity -= contract.Quantity
+				if buyerPortfolio.Quantity == 0 {
+					if err := tx.Delete(&buyerPortfolio).Error; err != nil {
+						return fmt.Errorf("Greška prilikom brisanja portfolija kupca: %w", err)
+					}
+				} else {
+					if err := tx.Save(&buyerPortfolio).Error; err != nil {
+						return fmt.Errorf("Greška prilikom ažuriranja portfolija kupca: %w", err)
+					}
+				}
+			}
+		}
+
+		return saga.StateManager.Remove(tx, uid)
 	})
 }
 
@@ -317,14 +410,21 @@ func verifyFinalState(uid string) error {
 }
 
 func markContractAsExercised(uid string) error {
-	now := time.Now().Unix()
-	return db.DB.Model(&types.OptionContract{}).
-		Where("uid = ?", uid).
-		Updates(map[string]interface{}{
-			"is_exercised": true,
-			"exercised_at": now,
-			"status":       "closed",
-		}).Error
+	return db.DB.Transaction(func(tx *gorm.DB) error {
+		now := time.Now().Unix()
+		err := saga.StateManager.Remove(tx, uid)
+		if err != nil {
+			return err
+		}
+		return tx.Model(&types.OptionContract{}).
+			Where("uid = ?", uid).
+			Updates(map[string]any{
+				"is_exercised": true,
+				"exercised_at": now,
+				"status":       "closed",
+			}).Error
+
+	})
 }
 
 func GetAccountsForUser(userId int64) ([]dto.Account, error) {

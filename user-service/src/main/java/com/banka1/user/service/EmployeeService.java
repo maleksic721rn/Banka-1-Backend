@@ -220,12 +220,10 @@ public class EmployeeService {
         return employeeRepository.findFilteredEmployees(firstName, lastName, email, position);
     }
 
-    public List<EmployeeResponse> getAllActuaries(){
+    public List<EmployeeResponse> getAllActuaries() {
         return employeeRepository.getActuaries()
                 .stream()
                 .map(EmployeeService::getEmployeeResponse)
                 .toList();
-
-
     }
 }

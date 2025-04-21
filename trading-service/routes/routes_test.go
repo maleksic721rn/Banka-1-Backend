@@ -144,11 +144,18 @@ func TestSetupWithRealApp(t *testing.T) {
 	app := fiber.New()
 
 	// Execute
-	Setup(app)
+	SetupRoutes(app)
 
-	// Create a test server
-	server := httptest.NewServer(app.Handler())
-	defer server.Close()
+	app.Get("/", func(c *fiber.Ctx) error {
+		return c.SendString("Hello, World!")
+	})
+	req := httptest.NewRequest("GET", "/", nil)
+	res, err := app.Test(req)
+
+	assert.NoError(t, err)
+	defer res.Body.Close()
+
+	assert.Equal(t, fiber.StatusOK, res.StatusCode) // Or whatever status code you expect when Auth middleware is present
 
 	// At this point the app should have the /actuaries route group configured
 	// with Auth and DepartmentCheck middlewares
@@ -158,7 +165,7 @@ func TestSetupWithRealApp(t *testing.T) {
 	// that the function completes without errors
 
 	assert.NotPanics(t, func() {
-		Setup(app)
+		SetupRoutes(app)
 	}, "Setup should not panic")
 }
 

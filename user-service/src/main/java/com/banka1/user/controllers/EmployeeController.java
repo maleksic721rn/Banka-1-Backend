@@ -293,5 +293,4 @@ public class EmployeeController {
         var employees = employeeService.getAllActuaries();
         return ResponseTemplate.create(ResponseEntity.status(HttpStatus.OK), true, employees, null);
     }
-
 }

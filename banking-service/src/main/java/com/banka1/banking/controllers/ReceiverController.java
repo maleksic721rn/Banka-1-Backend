@@ -1,4 +1,6 @@
 package com.banka1.banking.controllers;
+
+import com.banka1.banking.aspect.Authorization;
 import com.banka1.banking.aspect.ReceiverAuthorization;
 import com.banka1.banking.dto.ReceiverDTO;
 import com.banka1.banking.models.Receiver;
@@ -30,7 +32,7 @@ public class ReceiverController {
 
     @Operation(
             summary = "Dodavanje novog primaoca",
-            description = "Dodaje novog primaoca u listu primaoca plaćanja za određeni bankovni nalog."
+            description = "Dodaje novog primaoca u listu primaoca plaćanja za određenog customer-a."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Primalac uspešno dodat",
@@ -43,7 +45,7 @@ public class ReceiverController {
             )
     })
     @PostMapping
-    @ReceiverAuthorization
+    @Authorization
     public ResponseEntity<?> addReceivers(
             @RequestBody @io.swagger.v3.oas.annotations.parameters.RequestBody(
                     description = "Podaci o primaocu",
@@ -60,8 +62,8 @@ public class ReceiverController {
     }
 
     @Operation(
-            summary = "Dohvatanje liste primaoca za određeni bankovni nalog",
-            description = "Vraća listu svih primaoca plaćanja za određeni bankovni nalog korisnika."
+            summary = "Dohvatanje liste primaoca za određenog customer-a",
+            description = "Vraća listu svih primaoca plaćanja za određenog customer-a."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Lista primaoca uspešno dohvaćena",
@@ -73,15 +75,15 @@ public class ReceiverController {
                             examples = @ExampleObject(value = "{ \"success\": false, \"error\": \"Nema sačuvanih primaoca za ovaj nalog.\" }"))
             )
     })
-    @GetMapping("/{accountId}")
-    @ReceiverAuthorization
+    @GetMapping("/{customerId}")
+    @Authorization
     public ResponseEntity<?> getReceivers(
-            @Parameter(description = "ID naloga korisnika", required = true, example = "2")
-            @PathVariable Long accountId) {
-        if (!receiverService.accountExists(accountId)) {
+            @Parameter(description = "ID korisnika", required = true, example = "2")
+            @PathVariable Long customerId) {
+        if (!receiverService.accountExists(customerId)) {
             return ResponseTemplate.create(ResponseEntity.status(HttpStatus.NOT_FOUND), false, null, "Nalog ne postoji.");
         }
-        List<Receiver> receivers = receiverService.getReceiversByAccountId(accountId);
+        List<Receiver> receivers = receiverService.getReceiversByCustomerId(customerId);
         return ResponseTemplate.create(ResponseEntity.status(HttpStatus.OK), true, Map.of("receivers", receivers), null);
     }
 
@@ -99,11 +101,11 @@ public class ReceiverController {
                             examples = @ExampleObject(value = "{ \"success\": false, \"error\": \"Primalac ne postoji ili su podaci nevalidni.\" }"))
             )
     })
-    @PutMapping("/{id}")
+    @PutMapping("/{receiverId}")
     @ReceiverAuthorization
     public ResponseEntity<?> updateReceiver(
             @Parameter(description = "ID primaoca", required = true, example = "1")
-            @PathVariable Long id,
+            @PathVariable Long receiverId,
             @RequestBody @io.swagger.v3.oas.annotations.parameters.RequestBody(
                     description = "Podaci za ažuriranje primaoca",
                     required = true,
@@ -111,7 +113,7 @@ public class ReceiverController {
                             examples = @ExampleObject(value = "{ \"ownerAccountId\": 2, \"accountNumber\": \"987654321\", \"fullName\": \"Nikola Nikolić\", \"address\": \"Nemanjina 4\" }"))
             ) ReceiverDTO receiverDTO) {
         try {
-            Receiver updatedReceiver = receiverService.updateReceiver(id, receiverDTO);
+            Receiver updatedReceiver = receiverService.updateReceiver(receiverId, receiverDTO);
             return ResponseTemplate.create(ResponseEntity.status(HttpStatus.OK), true, Map.of("message", "Primalac uspešno ažuriran", "receiver", updatedReceiver), null);
         } catch (Exception e) {
             return ResponseTemplate.create(ResponseEntity.status(HttpStatus.BAD_REQUEST), false, null, e.getMessage());

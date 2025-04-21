@@ -6,7 +6,6 @@ import (
 	"banka1.com/types"
 	"fmt"
 	"github.com/gofiber/fiber/v2"
-	"strconv"
 )
 
 type PortfolioController struct {
@@ -15,8 +14,8 @@ type PortfolioController struct {
 func NewPortfolioController() *PortfolioController { return &PortfolioController{} }
 
 type UpdatePublicCountRequest struct {
-	SecurityID  uint `json:"security_id"`
-	PublicCount int  `json:"public"`
+	PortfolioID uint `json:"portfolio_id"`
+	PublicCount *int `json:"public"`
 }
 
 // UpdatePublicCount godoc
@@ -26,15 +25,17 @@ type UpdatePublicCountRequest struct {
 //	@Tags			Portfolio
 //	@Accept			json
 //	@Produce		json
-//	@Param			id	path		int									true	"User ID"
 //	@Param			body	body	UpdatePublicCountRequest			true	"Podaci za ažuriranje"
 //	@Success		200	{object}	types.Response{data=string}			"Uspešna izmena"
 //	@Failure		400	{object}	types.Response						"Nedostaje user ID ili telo nije ispravno"
 //	@Failure		500	{object}	types.Response						"Greška pri ažuriranju"
-//	@Router			/securities/{id}/public-count [put]
+//	@Router			/securities/public-count [put]
 func (sc *PortfolioController) UpdatePublicCount(c *fiber.Ctx) error {
+	var req struct {
+		PortfolioID uint `json:"portfolio_id"`
+		PublicCount *int `json:"public"`
+	}
 
-	var req UpdatePublicCountRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(400).JSON(types.Response{
 			Success: false,
@@ -42,68 +43,37 @@ func (sc *PortfolioController) UpdatePublicCount(c *fiber.Ctx) error {
 		})
 	}
 
-	userIDRaw := c.Locals("user_id")
-	if userIDRaw == nil {
-		return c.Status(401).JSON(types.Response{
-			Success: false,
-			Error:   "Unauthorized: Missing user ID",
-		})
-	}
-
-	var userID uint
-	switch v := userIDRaw.(type) {
-	case float64:
-		userID = uint(v)
-	case int:
-		userID = uint(v)
-	case uint:
-		userID = v
-	case string:
-		parsed, err := strconv.ParseUint(v, 10, 64)
-		if err != nil {
-			return c.Status(401).JSON(types.Response{
-				Success: false,
-				Error:   "Unauthorized: Invalid user ID format",
-			})
-		}
-		userID = uint(parsed)
-	default:
-		return c.Status(401).JSON(types.Response{
-			Success: false,
-			Error:   "Unauthorized: Unknown user ID type",
-		})
-	}
-
-	// Dohvatanje portfolija
-	var portfolio types.Portfolio
-	if err := db.DB.Where("user_id = ? AND security_id = ?", userID, req.SecurityID).
-		First(&portfolio).Error; err != nil {
-		return c.Status(404).JSON(types.Response{
-			Success: false,
-			Error:   "Portfolio not found",
-		})
-	}
-
-	// Validacije
-	if req.PublicCount < 0 {
+	if *req.PublicCount < 0 {
 		return c.Status(400).JSON(types.Response{
 			Success: false,
 			Error:   "Public count cannot be negative",
 		})
 	}
 
-	// Proveri da public ne prelazi ukupnu količinu
-	if req.PublicCount > portfolio.Quantity {
+	var portfolio types.Portfolio
+	if err := db.DB.Preload("Security").First(&portfolio, req.PortfolioID).Error; err != nil {
+		return c.Status(404).JSON(types.Response{
+			Success: false,
+			Error:   "Portfolio not found",
+		})
+	}
+
+	if *req.PublicCount > portfolio.Quantity {
 		return c.Status(400).JSON(types.Response{
 			Success: false,
 			Error:   "Public count cannot be greater than total amount",
 		})
 	}
+	fmt.Printf("Portfolio: %+v\n", portfolio)
+	if portfolio.Security.Type != "Stock" {
+		return c.Status(400).JSON(types.Response{
+			Success: false,
+			Error:   "Hartija od vrednosti mora biti akcija",
+		})
+	}
 
 	// Izmena u bazi
-	if err := db.DB.Model(&types.Portfolio{}).
-		Where("user_id = ? AND security_id = ?", userID, req.SecurityID).
-		Update("public_count", req.PublicCount).Error; err != nil {
+	if err := db.DB.Model(&portfolio).Update("public_count", *req.PublicCount).Error; err != nil {
 		return c.Status(500).JSON(types.Response{
 			Success: false,
 			Error:   "Failed to update public count: " + err.Error(),
@@ -112,7 +82,7 @@ func (sc *PortfolioController) UpdatePublicCount(c *fiber.Ctx) error {
 
 	return c.JSON(types.Response{
 		Success: true,
-		Data:    fmt.Sprintf("Updated public count to %d", req.PublicCount),
+		Data:    fmt.Sprintf("Updated public count to %d", *req.PublicCount),
 	})
 }
 

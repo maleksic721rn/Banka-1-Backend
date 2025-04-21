@@ -1,12 +1,6 @@
 package main
 
 import (
-	"banka1.com/listings/forex"
-	"banka1.com/listings/futures"
-	"banka1.com/listings/option"
-	"banka1.com/listings/securities"
-	"banka1.com/listings/stocks"
-	"banka1.com/listings/tax"
 	"banka1.com/routes"
 	fiberSwagger "github.com/swaggo/fiber-swagger"
 
@@ -22,11 +16,11 @@ import (
 
 	"banka1.com/broker"
 	"banka1.com/db"
-	_ "banka1.com/docs"
-	"banka1.com/exchanges"
 	"banka1.com/types"
 	"github.com/gofiber/fiber/v2"
 	"github.com/joho/godotenv"
+
+	_ "banka1.com/docs"
 
 	"log"
 )
@@ -48,50 +42,9 @@ func main() {
 	broker.Connect(os.Getenv("MESSAGE_BROKER_NETWORK"), os.Getenv("MESSAGE_BROKER_HOST"))
 	db.Init()
 
-	err = exchanges.LoadDefaultExchanges()
-	if err != nil {
-		log.Printf("Warning: Failed to load exchanges: %v", err)
-	}
-
-	log.Println("Starting to load default stocks...")
-	stocks.LoadDefaultStocks()
-	log.Println("Finished loading default stocks")
-
-	log.Println("Starting to load default forex pairs...")
-	forex.LoadDefaultForexPairs()
-	log.Println("Finished loading default forex pairs")
-
-	log.Println("Starting to load default futures...")
-	err = futures.LoadDefaultFutures()
-	if err != nil {
-		log.Printf("Warning: Failed to load futures: %v", err)
-	}
-	log.Println("Finished loading default futures")
-
-	log.Println("Starting to load default options...")
-	err = option.LoadAllOptions()
-	if err != nil {
-		log.Printf("Warning: Failed to load options: %v", err)
-	}
-	log.Println("Finished loading default options")
-
-	log.Println("Starting to load default securities...")
-	securities.LoadAvailableSecurities()
-	log.Println("Finished loading default securities")
-
-	log.Println("Starting to load default taxes...")
-	tax.LoadTax()
-	log.Println("Finished loading default taxes")
-
-	log.Println("Starting to load default orders...")
-	orders.LoadOrders()
-	log.Println("Finished loading default orders")
-
-	log.Println("Starting to load default portfolios...")
-	orders.LoadPortfolios()
-	log.Println("Finished loading default portfolios")
-
 	cron.StartScheduler()
+
+	broker.FailAllOTC()
 
 	broker.StartListeners()
 
@@ -102,6 +55,8 @@ func main() {
 		c.Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE")
 		return c.Next()
 	})
+
+	routes.SetupRoutes(app)
 
 	app.Get("/", middlewares.Auth, middlewares.DepartmentCheck("AGENT"), func(c *fiber.Ctx) error {
 		response := types.Response{
@@ -116,10 +71,6 @@ func main() {
 		return c.SendStatus(200)
 	})
 
-	routes.SetupRoutes(app)
-	routes.Setup(app)
-
-	// svaki put kad menjate swagger dokumentaciju (komentari iznad funkcija u controllerima), uradite "swag init" da bi se azuriralo
 	app.Get("/swagger/*", fiberSwagger.WrapHandler)
 
 	ticker := time.NewTicker(5000 * time.Millisecond)
@@ -149,7 +100,7 @@ func checkUncompletedOrders() {
 
 	fmt.Println("Proveravanje neizvršenih naloga...")
 
-	db.DB.Where("status = ? AND is_done = ?", "approved", false).Find(&undoneOrders)
+	db.DB.Where("status = 'approved' AND NOT is_done").Find(&undoneOrders)
 	fmt.Printf("Pronadjeno %v neizvršenih naloga\n", len(undoneOrders))
 	previousLength := -1
 
@@ -158,7 +109,7 @@ func checkUncompletedOrders() {
 		for _, order := range undoneOrders {
 			if !orders.IsSettlementDateValid(&order) {
 				fmt.Printf("Order %d automatski odbijen zbog isteka settlement datuma\n", order.ID)
-				db.DB.Model(&order).Updates(map[string]interface{}{
+				db.DB.Model(&order).Updates(map[string]any{
 					"status":          "declined",
 					"is_done":         true,
 					"remaining_parts": 0,
@@ -168,7 +119,6 @@ func checkUncompletedOrders() {
 
 			if orders.CanExecuteAny(order) {
 				orders.MatchOrder(order)
-				break
 			}
 		}
 		previousLength = len(undoneOrders)

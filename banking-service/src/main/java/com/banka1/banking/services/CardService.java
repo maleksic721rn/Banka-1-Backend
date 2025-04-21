@@ -84,7 +84,7 @@ public class CardService {
             throw new RuntimeException("American Express moze biti jedino povezan sa deviznim racunom");
         }
 
-        long currentTimeMillis = System.currentTimeMillis();
+        long currentTimeMillis = System.currentTimeMillis(); //ponovljen kod vec ga ima u mapperu
         card.setCreatedAt(currentTimeMillis);
         card.setExpirationDate(currentTimeMillis + (3L * 365 * 24 * 60 * 60 * 1000)); // +3 godine
 
