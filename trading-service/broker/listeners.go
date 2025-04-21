@@ -260,7 +260,6 @@ func assignOwnership(uid string) error {
 					UserID:        contract.BuyerID,
 					SecurityID:    contract.SecurityID,
 					Quantity:      0,
-					PurchasePrice: contract.StrikePrice,
 					PublicCount:   0,
 				}
 				if err := tx.Create(&portfolio).Error; err != nil {
@@ -274,6 +273,20 @@ func assignOwnership(uid string) error {
 		portfolio.Quantity += contract.Quantity
 		if err := tx.Save(&portfolio).Error; err != nil {
 			return fmt.Errorf("Greška prilikom ažuriranja portfolija kupca: %w", err)
+		}
+
+		txn := types.Transaction{
+			ContractID:   contract.ID,
+			BuyerID:      contract.BuyerID,
+			SellerID:     contract.SellerID,
+			SecurityID:   contract.SecurityID,
+			Quantity:     contract.Quantity,
+			PricePerUnit: contract.StrikePrice,
+			TotalPrice:   contract.StrikePrice * float64(contract.Quantity),
+		}
+
+		if err := tx.Create(&txn).Error; err != nil {
+			return fmt.Errorf("Greška prilikom kreiranja transakcije: %w", err)
 		}
 
 		return saga.StateManager.UpdatePhase(tx, uid, types.PhaseOwnershipTransferred)
