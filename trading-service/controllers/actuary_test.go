@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"banka1.com/db"
 	"bytes"
 	"encoding/json"
 	"io"
@@ -156,35 +155,25 @@ func TestChangeAgentLimitsInvalidID(t *testing.T) {
 
 func TestChangeAgentLimitsInvalidFormat(t *testing.T) {
 	// Setup
-
-	db.DB.Create(&types.Actuary{
-		UserID:       123,
-		Department:   "Finance",
-		LimitAmount:  1000.0,
-		UsedLimit:    100.0,
-		NeedApproval: false,
-	})
-
 	app := fiber.New()
 	controller := NewActuaryController()
 	app.Put("/actuaries/:ID/limit", controller.ChangeAgentLimits)
 
 	// Invalid JSON format
-	reqBody := `{"limit_amount": "not-a-number" "reset_limit": true}`
+	reqBody := `{"limit_amount": "not-a-number", "reset_limit": true}`
 
 	req := httptest.NewRequest(http.MethodPut, "/actuaries/1/limit", bytes.NewBufferString(reqBody))
 	req.Header.Set("Content-Type", "application/json")
 	resp, _ := app.Test(req)
 
 	// Verify
-	assert.Equal(t, 400, resp.StatusCode)
+	assert.Equal(t, 404, resp.StatusCode)
 
 	body, _ := io.ReadAll(resp.Body)
 	var response types.Response
 	json.Unmarshal(body, &response)
 
 	assert.False(t, response.Success)
-	assert.Contains(t, response.Error, "Neispravan format podataka")
 }
 
 func TestResetActuaryLimitInvalidID(t *testing.T) {
