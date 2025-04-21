@@ -437,37 +437,31 @@ func (ac *ActuaryController) ResetActuaryLimit(c *fiber.Ctx) error {
 	})
 }
 
-func (rc *ActuaryController) UpdateUsedLimit(c *fiber.Ctx) error {
-	id := c.Params("ID")
+func (rc *ActuaryController) UpdateUsedLimit(id string, amount float64) (*types.Actuary, error) {
+
+	tx := db.DB.Begin()
+	if tx.Error != nil {
+		return nil, tx.Error
+	}
+
 	var actuary types.Actuary
-
-	result := db.DB.First(&actuary, id)
-	if result.Error != nil {
-		return c.Status(404).JSON(types.Response{
-			Success: false,
-			Data:    nil,
-			Error:   "Aktuar nije pronadjen",
-		})
+	if err := tx.First(&actuary, id).Error; err != nil {
+		tx.Rollback()
+		return nil, err
 	}
 
-	var updateData dto.UpdateActuaryUsedLimitDTO
-	if err := c.BodyParser(&updateData); err != nil {
-		return c.Status(400).JSON(types.Response{
-			Success: false,
-			Data:    nil,
-			Error:   "Neispravan format podataka",
-		})
+	actuary.UsedLimit += amount
+
+	if err := tx.Save(&actuary).Error; err != nil {
+		tx.Rollback()
+		return nil, err
 	}
 
-	actuary.UsedLimit += updateData.Amount
+	if err := tx.Commit().Error; err != nil {
+		return nil, err
+	}
 
-	db.DB.Save(&actuary)
-
-	return c.JSON(types.Response{
-		Success: true,
-		Data:    actuary,
-		Error:   "",
-	})
+	return &actuary, nil
 }
 
 //func containsIgnoreCase(source, search string) bool {
@@ -489,7 +483,6 @@ func InitActuaryRoutes(app *fiber.App) {
 	app.Get("/actuaries/:ID", middlewares.Auth, actuaryController.GetActuaryByID)
 	app.Put("/actuaries/:ID/limit", middlewares.Auth, actuaryController.ChangeAgentLimits)
 	app.Put("/actuaries/:ID/reset-used-limit", middlewares.Auth, actuaryController.ResetActuaryLimit)
-	app.Post("/actuaries/:ID/update-used-limit", middlewares.Auth, actuaryController.UpdateUsedLimit)
 
 }
 
