@@ -48,6 +48,56 @@ func OrderToOrderResponse(order types.Order) types.OrderResponse {
 	}
 }
 
+func fetchConversionToRSD(c *fiber.Ctx, amount float64, fromCurrency string) (float64, error) {
+	fromCurrency = strings.ToUpper(fromCurrency)
+	if fromCurrency == "RSD" {
+		return amount, nil
+	}
+
+	url := fmt.Sprintf("%s/exchange-rates/%s", os.Getenv("BANKING_URL"), fromCurrency)
+
+	req, _ := http.NewRequest("GET", url, nil)
+	req.Header = http.Header{
+		"Authorization": []string{c.Get("Authorization")},
+	}
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil || resp.StatusCode != 200 {
+		return 0, fmt.Errorf("Greska kod dohvatanja kursa: %v", err)
+	}
+
+	var body map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return 0, fmt.Errorf("Neuspešno parsiranje JSON-a")
+	}
+
+	data, ok := body["data"].(map[string]any)
+	if !ok {
+		return 0, fmt.Errorf("Nema data polja u odgovoru")
+	}
+
+	rates, ok := data["rates"].([]any)
+	if !ok {
+		return 0, fmt.Errorf("Nema lista kurseva u odgovoru")
+	}
+
+	for _, rate := range rates {
+		entry, ok := rate.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		if strings.ToUpper(entry["quoteCurrency"].(string)) == "RSD" {
+			if r, ok := entry["rate"].(float64); ok {
+				return amount * r, nil
+			}
+		}
+	}
+
+	return 0, fmt.Errorf("Nije pronađen kurs iz %s u RSD", fromCurrency)
+}
+
 // GetOrderByID godoc
 //
 //	@Summary		Preuzimanje naloga po I
@@ -262,6 +312,48 @@ func (oc *OrderController) CreateOrder(c *fiber.Ctx) error {
 		}
 	}
 
+	if status == "pending" && strings.ToLower(orderRequest.Direction) == "buy" {
+		department, _ := c.Locals("department").(string)
+		if department == "AGENT" {
+			var actuary types.Actuary
+			if err := db.DB.Where("user_id = ?", orderRequest.UserID).First(&actuary).Error; err == nil {
+				// Preračunavanje cene
+				// Po default-u uzimamo LastPrice hartije
+				// Korak 1: Izračunaj sirovu vrednost ordera (u valuti hartije)
+				rawValue := security.LastPrice * float64(orderRequest.Quantity) * float64(orderRequest.ContractSize)
+
+				// Korak 2: Pronađi valutu preko security.Exchange
+				var exchange types.Exchange
+				if err := db.DB.Where("name = ?", security.Exchange).First(&exchange).Error; err != nil {
+					return c.Status(500).JSON(types.Response{
+						Success: false,
+						Error:   fmt.Sprintf("Greška pri pronalaženju valute berze: %v", err),
+					})
+				}
+
+				// Korak 3: Konvertuj u RSD preko banking-servisa
+				orderValue, err := fetchConversionToRSD(c, rawValue, exchange.Currency)
+				if err != nil {
+					return c.Status(500).JSON(types.Response{
+						Success: false,
+						Error:   "Greška prilikom konverzije u RSD: " + err.Error(),
+					})
+				}
+
+				if actuary.NeedApproval || actuary.UsedLimit+orderValue > actuary.LimitAmount {
+					status = "pending"
+					approvedBy = nil
+				} else {
+					status = "approved"
+					id := uint(userId)
+					approvedBy = &id
+					actuary.UsedLimit += orderValue
+					db.DB.Save(&actuary)
+				}
+			}
+		}
+	}
+
 	// Provera dostupnosti unita ako se order odobrava odmah
 	if status == "approved" {
 		if strings.ToLower(orderRequest.Direction) == "sell" {
@@ -279,54 +371,6 @@ func (oc *OrderController) CreateOrder(c *fiber.Ctx) error {
 				})
 			}
 		}
-	}
-
-	var orderType string
-	switch {
-	case orderRequest.StopPricePerUnit == nil && orderRequest.LimitPricePerUnit == nil:
-		orderType = "MARKET"
-	case orderRequest.StopPricePerUnit == nil && orderRequest.LimitPricePerUnit != nil:
-		orderType = "LIMIT"
-	case orderRequest.StopPricePerUnit != nil && orderRequest.LimitPricePerUnit == nil:
-		orderType = "STOP"
-	case orderRequest.StopPricePerUnit != nil && orderRequest.LimitPricePerUnit != nil:
-		orderType = "STOP-LIMIT"
-	}
-
-	order := types.Order{
-		UserID:            orderRequest.UserID,
-		AccountID:         orderRequest.AccountID,
-		SecurityID:        orderRequest.SecurityID,
-		Quantity:          orderRequest.Quantity,
-		ContractSize:      orderRequest.ContractSize,
-		StopPricePerUnit:  orderRequest.StopPricePerUnit,
-		LimitPricePerUnit: orderRequest.LimitPricePerUnit,
-		OrderType:         orderType,
-		Direction:         orderRequest.Direction,
-		Status:            status, // TODO: pribaviti needs approval vrednost preko token-a?
-		ApprovedBy:        approvedBy,
-		LastModified:      time.Now().Unix(),
-		IsDone:            false,
-		RemainingParts:    &orderRequest.Quantity,
-		AfterHours:        false, // TODO: dodati check za ovo
-		AON:               orderRequest.AON,
-		Margin:            orderRequest.Margin,
-	}
-
-	tx := db.DB.Create(&order)
-	if err := tx.Error; err != nil {
-		return c.Status(400).JSON(types.Response{
-			Success: false,
-			Error:   "Neuspelo kreiranje: " + err.Error(),
-		})
-	}
-
-	if order.Status == "approved" {
-		go orders.MatchOrder(order)
-	}
-
-	if strings.ToLower(order.Direction) == "sell" && order.Status == "approved" {
-		_ = orders.UpdateAvailableVolume(order.SecurityID)
 	}
 
 	if orderRequest.Margin {
@@ -390,6 +434,54 @@ func (oc *OrderController) CreateOrder(c *fiber.Ctx) error {
 				})
 			}
 		}
+	}
+
+	var orderType string
+	switch {
+	case orderRequest.StopPricePerUnit == nil && orderRequest.LimitPricePerUnit == nil:
+		orderType = "MARKET"
+	case orderRequest.StopPricePerUnit == nil && orderRequest.LimitPricePerUnit != nil:
+		orderType = "LIMIT"
+	case orderRequest.StopPricePerUnit != nil && orderRequest.LimitPricePerUnit == nil:
+		orderType = "STOP"
+	case orderRequest.StopPricePerUnit != nil && orderRequest.LimitPricePerUnit != nil:
+		orderType = "STOP-LIMIT"
+	}
+
+	order := types.Order{
+		UserID:            orderRequest.UserID,
+		AccountID:         orderRequest.AccountID,
+		SecurityID:        orderRequest.SecurityID,
+		Quantity:          orderRequest.Quantity,
+		ContractSize:      orderRequest.ContractSize,
+		StopPricePerUnit:  orderRequest.StopPricePerUnit,
+		LimitPricePerUnit: orderRequest.LimitPricePerUnit,
+		OrderType:         orderType,
+		Direction:         orderRequest.Direction,
+		Status:            status, // TODO: pribaviti needs approval vrednost preko token-a?
+		ApprovedBy:        approvedBy,
+		LastModified:      time.Now().Unix(),
+		IsDone:            false,
+		RemainingParts:    &orderRequest.Quantity,
+		AfterHours:        false, // TODO: dodati check za ovo
+		AON:               orderRequest.AON,
+		Margin:            orderRequest.Margin,
+	}
+
+	tx := db.DB.Create(&order)
+	if err := tx.Error; err != nil {
+		return c.Status(400).JSON(types.Response{
+			Success: false,
+			Error:   "Neuspelo kreiranje: " + err.Error(),
+		})
+	}
+
+	if order.Status == "approved" {
+		go orders.MatchOrder(order)
+	}
+
+	if strings.ToLower(order.Direction) == "sell" && order.Status == "approved" {
+		_ = orders.UpdateAvailableVolume(order.SecurityID)
 	}
 
 	return c.JSON(types.Response{

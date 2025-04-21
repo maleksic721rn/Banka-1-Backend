@@ -269,9 +269,9 @@ func executePartial(order types.Order, price float64, tx *gorm.DB) int {
 	var match types.Order
 	direction := "buy"
 	if strings.ToLower(order.Direction) == "buy" {
-		direction = "sell"
+		direction = "Sell"
 	} else {
-		direction = "buy"
+		direction = "Buy"
 	}
 
 	fmt.Printf("Pokušavam da pronađem match za Order %d...\n", order.ID)
