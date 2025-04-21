@@ -4,6 +4,7 @@ import com.banka1.banking.dto.CreateEventDTO;
 import com.banka1.banking.dto.interbank.InterbankMessageDTO;
 import com.banka1.banking.dto.interbank.InterbankMessageType;
 import com.banka1.banking.dto.interbank.VoteDTO;
+import com.banka1.banking.dto.interbank.VoteReasonDTO;
 import com.banka1.banking.dto.interbank.committx.CommitTransactionDTO;
 import com.banka1.banking.dto.interbank.newtx.ForeignBankIdDTO;
 import com.banka1.banking.dto.interbank.newtx.InterbankTransactionDTO;
@@ -148,8 +149,10 @@ public class InterbankService implements InterbankOperationService {
         switch (messageDto.getMessageType()) {
             case NEW_TX :
                 System.out.println("Received NEW_TX message: " + messageDto.getMessage());
-                response.setVote("YES");
-                response.setReasons(List.of());
+//                response.setVote("YES");
+//                response.setReasons(List.of());
+                handleNewTXRequest((InterbankMessageDTO<InterbankTransactionDTO>) messageDto);
+
             case COMMIT_TX :
                 // TODO
                 break;
@@ -159,6 +162,47 @@ public class InterbankService implements InterbankOperationService {
             default:
                 throw new IllegalArgumentException("Unknown message type");
 
+        }
+
+        return response;
+    }
+
+    public VoteDTO handleNewTXRequest(InterbankMessageDTO<InterbankTransactionDTO> messageDto) {
+        // check if all postings are monetary
+        VoteDTO response = new VoteDTO();
+        try {
+            InterbankTransactionDTO message = messageDto.getMessage();
+            List<PostingDTO> postings = message.getPostings();
+
+            String currencyCode = null;
+
+            if (postings == null || postings.isEmpty() || postings.size() != 2) {
+                response.setVote("NO");
+                response.setReasons(List.of(new VoteReasonDTO("NO_POSTINGS", null)));
+                return response;
+            }
+
+            for (PostingDTO posting : postings) {
+                if (posting.getAsset() instanceof MonetaryAssetDTO) {
+                    MonetaryAssetDTO asset = (MonetaryAssetDTO) posting.getAsset();
+                    if (asset.getAsset().getCurrency() == null) {
+                        response.setVote("NO");
+                        response.setReasons(List.of(new VoteReasonDTO("NO_SUCH_ASSET", posting)));
+                        return response;
+                    }
+
+                    if (currencyCode == null) {
+                        currencyCode = asset.getAsset().getCurrency();
+                    } else if (!currencyCode.equals(asset.getAsset().getCurrency())) {
+                        response.setVote("NO");
+                        response.setReasons(List.of(new VoteReasonDTO("NO_SUCH_ASSET", posting)));
+                        return response;
+                    }
+                }
+            }
+
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to handle new transaction request: " + e.getMessage());
         }
 
         return response;
