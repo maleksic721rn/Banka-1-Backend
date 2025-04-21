@@ -12,6 +12,7 @@ type Transaction struct {
 	PricePerUnit float64   `gorm:"not null"`
 	TotalPrice   float64   `gorm:"not null"`
 	CreatedAt    time.Time `gorm:"autoCreateTime"`
+	TaxPaid      bool      `gorm:"default:false"`
 }
 
 func (Transaction) TableName() string {

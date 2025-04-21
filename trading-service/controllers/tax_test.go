@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"banka1.com/db"
 	"banka1.com/types"
 	"encoding/json"
 	"github.com/gofiber/fiber/v2"
@@ -12,13 +13,46 @@ import (
 	"testing"
 )
 
-func TestRunTax(t *testing.T) {
+func TestRunTax_Success(t *testing.T) {
+	app := fiber.New()
+	taxController := NewTaxController()
+	app.Post("/tax/run", taxController.RunTax)
+
+	db.DB.Exec("DELETE FROM transactions")
+
+	db.DB.Exec(`
+		INSERT INTO transactions (id, buyer_id, seller_id, security_id, quantity, price_per_unit, total_price, tax_paid, created_at) VALUES
+		(1, 1, 2, 101, 10, 25.0, 250.0, FALSE, strftime('%Y-%m-%d', 'now')),
+		(2, 2, 1, 102, 5, 20.0, 100.0, FALSE, strftime('%Y-%m-%d', 'now'))
+	`)
+
+	req := httptest.NewRequest(http.MethodPost, "/tax/run", nil)
+	resp, _ := app.Test(req)
+	defer resp.Body.Close()
+
+	assert.Equal(t, 202, resp.StatusCode)
+
+	body, _ := io.ReadAll(resp.Body)
+	var response types.Response
+	json.Unmarshal(body, &response)
+
+	assert.True(t, response.Success)
+	assert.Equal(t, "Tax calculation and deduction completed successfully.", response.Data)
+
+	// Verify database updates
+	//var taxPaidCount int
+	//db.DB.Raw("SELECT COUNT(*) FROM transactions WHERE tax_paid = TRUE").Scan(&taxPaidCount)
+	//assert.Equal(t, 2, taxPaidCount)
+
+}
+
+func TestRunTax_InvalidRequest(t *testing.T) {
 	// Setup
 	app := fiber.New()
 	taxController := NewTaxController()
 	app.Post("/tax/run", taxController.RunTax)
 
-	// Execute
+	// Test case: Missing Authorization header
 	req := httptest.NewRequest(http.MethodPost, "/tax/run", nil)
 	resp, _ := app.Test(req)
 	defer resp.Body.Close()
@@ -26,13 +60,12 @@ func TestRunTax(t *testing.T) {
 	// Assertions
 	assert.Equal(t, 500, resp.StatusCode)
 
-	// Parse response body
 	body, _ := io.ReadAll(resp.Body)
 	var response types.Response
 	json.Unmarshal(body, &response)
 
 	assert.False(t, response.Success)
-	//assert.Equal(t, "Nije implementirano.", response.Error)
+	assert.Contains(t, response.Error, "Error fetching transactions")
 }
 
 func TestGetAggregatedTaxForUser_InvalidUserID(t *testing.T) {
