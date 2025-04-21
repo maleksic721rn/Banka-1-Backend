@@ -11,7 +11,6 @@ CREATE TABLE IF NOT EXISTS "user"
     address           VARCHAR(255)                            NOT NULL,
     username          VARCHAR(255)                            NOT NULL,
     password          VARCHAR(255),
-    salt_password     VARCHAR(255),
     verification_code VARCHAR(255),
     position          VARCHAR(255) DEFAULT 'N/A'              NOT NULL,
     department        VARCHAR(255) DEFAULT 'N/A'              NOT NULL,
@@ -20,17 +19,12 @@ CREATE TABLE IF NOT EXISTS "user"
     CONSTRAINT pk_user PRIMARY KEY (id)
 );
 
-alter table "user"
-    owner to user_service_user;
-
 CREATE TABLE IF NOT EXISTS user_permissions
 (
     user_id    BIGINT NOT NULL,
     permission VARCHAR(255)
 );
 
-alter table user_permissions
-    owner to user_service_user;
 
 ALTER TABLE "user"
     DROP CONSTRAINT IF EXISTS uc_user_email;
@@ -52,6 +46,30 @@ ALTER TABLE user_permissions
     ADD CONSTRAINT fk_user_permissions_on_customer FOREIGN KEY (user_id) REFERENCES "user" (id);
 
 
+ALTER TABLE user_permissions
+    DROP CONSTRAINT customer_permissions_permission_check;
+
+ALTER TABLE user_permissions
+    ADD CONSTRAINT customer_permissions_permission_check
+        CHECK ((permission)::text = ANY (
+            ARRAY[
+                'CREATE_EMPLOYEE',
+                'EDIT_EMPLOYEE',
+                'DELETE_EMPLOYEE',
+                'LIST_EMPLOYEE',
+                'READ_EMPLOYEE',
+                'SET_EMPLOYEE_PERMISSION',
+                'CREATE_CUSTOMER',
+                'EDIT_CUSTOMER',
+                'DELETE_CUSTOMER',
+                'LIST_CUSTOMER',
+                'READ_CUSTOMER',
+                'SET_CUSTOMER_PERMISSION',
+                'OTC_TRADING'
+                ]
+            ));
+
+
 create table if not exists reset_password
 (
     type            integer      not null,
@@ -64,9 +82,6 @@ create table if not exists reset_password
     token           varchar(255) not null
 );
 
-alter table reset_password
-    owner to user_service_user;
-
 create table if not exists set_password
 (
     customer        boolean,
@@ -78,7 +93,3 @@ create table if not exists set_password
     user_id         bigint,
     token           varchar(255)
 );
-
-alter table set_password
-    owner to user_service_user;
-
