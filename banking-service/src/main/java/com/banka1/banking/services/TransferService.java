@@ -19,6 +19,9 @@ import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -455,6 +458,9 @@ public class TransferService {
         transaction.setFinalAmount(amount - fee);
         transaction.setFee(fee);
         transaction.setTimestamp(System.currentTimeMillis());
+        LocalDateTime now = LocalDateTime.now();
+        transaction.setDate(now.toLocalDate());
+        transaction.setTime(now.toLocalTime());
         transaction.setDescription(description);
         transaction.setTransfer(transfer);
         return transaction;
