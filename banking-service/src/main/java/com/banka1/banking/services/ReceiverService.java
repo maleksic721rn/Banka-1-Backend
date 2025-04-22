@@ -29,6 +29,8 @@ public class ReceiverService {
 
         Receiver receiver = new Receiver();
 
+        System.out.println("ReceiverDTO: " + receiverDTO);
+        System.out.println("ReceiverDTO customerId: " + receiverDTO.getCustomerId());
         receiver.setCustomerId(receiverDTO.getCustomerId());
         receiver.setAccountNumber(receiverDTO.getAccountNumber());
 

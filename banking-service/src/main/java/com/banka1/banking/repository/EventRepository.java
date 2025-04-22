@@ -12,4 +12,5 @@ import java.util.Optional;
 @Repository
 public interface EventRepository extends JpaRepository<Event, Long> {
     boolean existsByIdempotenceKey(IdempotenceKey idempotenceKey);
+    Optional<Event> findByIdempotenceKey(IdempotenceKey idempotenceKey);
 }
