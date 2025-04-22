@@ -209,7 +209,7 @@ func expireOldOptionContracts() {
 }
 
 func resetDailyLimits() {
-	db.DB.Model(&types.Actuary{}).Where("role = ?", "agent").Update("usedLimit", 0)
+	db.DB.Model(&types.Actuary{}).Where("department = ?", "AGENT").Update("used_limit", 0)
 }
 
 func createNewActuaries() {
