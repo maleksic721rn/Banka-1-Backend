@@ -42,3 +42,10 @@ dependencyManagement {
 tasks.withType<Test> {
 	useJUnitPlatform()
 }
+
+tasks.named<org.springframework.boot.gradle.tasks.bundling.BootBuildImage>("bootBuildImage") {
+	builder = "paketobuildpacks/builder-jammy-base"
+	buildpacks = listOf("urn:cnb:builder:paketo-buildpacks/java", "gcr.io/paketo-buildpacks/health-checker:latest")
+	environment.put("BP_HEALTH_CHECKER_ENABLED", "true")
+	createdDate = "now"
+}
