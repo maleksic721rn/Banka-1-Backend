@@ -7,9 +7,7 @@ import com.banka1.banking.models.Account;
 import com.banka1.banking.models.Currency;
 import com.banka1.banking.models.ExchangePair;
 import com.banka1.banking.models.Transfer;
-import com.banka1.banking.models.helper.CurrencyType;
-import com.banka1.banking.models.helper.TransferStatus;
-import com.banka1.banking.models.helper.TransferType;
+import com.banka1.banking.models.helper.*;
 import com.banka1.banking.repository.AccountRepository;
 import com.banka1.banking.repository.CurrencyRepository;
 import com.banka1.banking.repository.ExchangePairRepository;
@@ -20,6 +18,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jms.core.JmsTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Map;
 import java.util.Optional;
@@ -70,6 +69,11 @@ public class ExchangeService {
         Account fromAccount = fromAccountOtp.get();
         Account toAccount = toAccountOtp.get();
 
+        if (fromAccount.getStatus() != AccountStatus.ACTIVE ||
+                toAccount.getStatus() != AccountStatus.ACTIVE) {
+            return false;
+        }
+
         if (fromAccount.getCurrencyType().equals(toAccount.getCurrencyType())){
             return false;
         }
@@ -81,75 +85,70 @@ public class ExchangeService {
     }
 
     public Long createExchangeTransfer(ExchangeMoneyTransferDTO exchangeMoneyTransferDTO) {
+        Account fromAccount = accountRepository.findById(exchangeMoneyTransferDTO.getAccountFrom())
+                .orElseThrow(() -> new IllegalArgumentException("Račun nije pronađen"));
 
-        Optional<Account> fromAccountDTO = accountRepository.findById(exchangeMoneyTransferDTO.getAccountFrom());
-        Optional<Account> toAccountDTO = accountRepository.findById(exchangeMoneyTransferDTO.getAccountTo());
+        Account toAccount = accountRepository.findById(exchangeMoneyTransferDTO.getAccountTo())
+                .orElseThrow(() -> new IllegalArgumentException("Račun nije pronađen"));
 
-        if (fromAccountDTO.isPresent() && toAccountDTO.isPresent()) {
+        if (!fromAccount.getOwnerID().equals(toAccount.getOwnerID())) {
+            throw new IllegalArgumentException("Transfer je moguc samo između računa istog korisnika");
+        }
 
-            Account fromAccount = fromAccountDTO.get();
-            Account toAccount = toAccountDTO.get();
+        Currency fromCurrency = currencyRepository.findByCode(fromAccount.getCurrencyType())
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Greska" + fromAccount.getAccountNumber()));
 
-            // PROVERITI DA LI SE VALUTE SALJU U DTO
-            Currency fromCurrency = currencyRepository.findByCode(fromAccount.getCurrencyType())
-                    .orElseThrow(() -> new IllegalArgumentException("Greska"));
+        Currency toCurrency = currencyRepository.findByCode(toAccount.getCurrencyType())
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Greska" + toAccount.getAccountNumber()));
 
-            Currency toCurrency = currencyRepository.findByCode(toAccount.getCurrencyType())
-                    .orElseThrow(() -> new IllegalArgumentException("Greska"));
+        CustomerDTO customerData = Optional.ofNullable(userServiceCustomer.getCustomerById(fromAccount.getOwnerID()))
+                .orElseThrow(() -> new IllegalArgumentException("Korisnik nije pronađen"));
 
-            Long customerId = fromAccount.getOwnerID();
-            CustomerDTO customerData = userServiceCustomer.getCustomerById(customerId);
+        Transfer transfer = new Transfer();
+        transfer.setFromAccountId(fromAccount);
+        transfer.setToAccountId(toAccount);
+        transfer.setAmount(exchangeMoneyTransferDTO.getAmount());
+        transfer.setStatus(TransferStatus.PENDING);
+        transfer.setType(TransferType.EXCHANGE);
+        transfer.setFromCurrency(fromCurrency);
+        transfer.setToCurrency(toCurrency);
+        transfer.setCreatedAt(System.currentTimeMillis());
 
-            if (customerData == null) {
-                throw new IllegalArgumentException("Korisnik nije pronađen");
-            }
-
-            String email = customerData.getEmail();
-            String firstName = customerData.getFirstName();
-            String lastName = customerData.getLastName();
-
-            Transfer transfer = new Transfer();
-            transfer.setFromAccountId(fromAccount);
-            transfer.setToAccountId(toAccount);
-            transfer.setAmount(exchangeMoneyTransferDTO.getAmount());
-            transfer.setStatus(TransferStatus.PENDING);
-            transfer.setType(TransferType.EXCHANGE);
-            transfer.setFromCurrency(fromCurrency);
-            transfer.setToCurrency(toCurrency);
-            transfer.setCreatedAt(System.currentTimeMillis());
-
+        try {
             transferRepository.saveAndFlush(transfer);
-
             String otpCode = otpTokenService.generateOtp(transfer.getId());
             transfer.setOtp(otpCode);
-
-            transferRepository.save(transfer);
+            transfer = transferRepository.save(transfer);
 
             NotificationDTO emailDto = new NotificationDTO();
             emailDto.setSubject("Verifikacija");
-            emailDto.setEmail(email);
+            emailDto.setEmail(customerData.getEmail());
             emailDto.setMessage("Vaš verifikacioni kod je: " + otpCode);
-            emailDto.setFirstName(firstName);
-            emailDto.setLastName(lastName);
+            emailDto.setFirstName(customerData.getFirstName());
+            emailDto.setLastName(customerData.getLastName());
             emailDto.setType("email");
 
             NotificationDTO pushNotification = new NotificationDTO();
             pushNotification.setSubject("Verifikacija");
             pushNotification.setMessage("Kliknite kako biste verifikovali transfer");
-            pushNotification.setFirstName(firstName);
-            pushNotification.setLastName(lastName);
+            pushNotification.setFirstName(customerData.getFirstName());
+            pushNotification.setLastName(customerData.getLastName());
             pushNotification.setType("firebase");
-            pushNotification.setEmail(email);
-            Map<String, String> data = Map.of("transferId", transfer.getId().toString(), "otp", otpCode);
-            pushNotification.setAdditionalData(data);
+            pushNotification.setEmail(customerData.getEmail());
+            pushNotification.setAdditionalData(Map.of(
+                    "transferId", transfer.getId().toString(),
+                    "otp", otpCode
+            ));
 
             jmsTemplate.convertAndSend(destinationEmail, messageHelper.createTextMessage(emailDto));
             jmsTemplate.convertAndSend(destinationEmail, messageHelper.createTextMessage(pushNotification));
 
             return transfer.getId();
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Failed to create exchange transfer", e);
         }
-
-        return null;
     }
 
 
@@ -164,7 +163,6 @@ public class ExchangeService {
     @ExcludeFromGeneratedJacocoReport("Wrapper method")
     public Map<String, Object> calculatePreviewExchangeAutomatic(String fromCurrency, String toCurrency, Double amount) {
         if(fromCurrency.equals("RSD") || toCurrency.equals("RSD")){
-
             return calculatePreviewExchange(fromCurrency, toCurrency, amount);
             }
         else
@@ -202,25 +200,23 @@ public class ExchangeService {
         double fee = (fromCurrency.equalsIgnoreCase("RSD") && toCurrency.equalsIgnoreCase("RSD")) ? 0.0 : convertedAmount * 0.01;
         double finalAmount = convertedAmount - fee;
 
-        double provision;
+
         if (fromCurrency.equalsIgnoreCase("RSD")) {
-            provision = fee * 1 / exchangeRate;
             exchangeRate = 1 / exchangeRate;
-        } else {
-            provision = fee;
         }
 
         return Map.of(
                 "exchangeRate", exchangeRate,
                 "convertedAmount", convertedAmount,
                 "fee", fee,
-                "provision", provision,
+                "provision", fee,
                 "finalAmount", finalAmount
         );
     }
 
 
     public Map<String, Object> calculatePreviewExchangeForeign(String fromCurrency, String toCurrency, Double amount) {
+        log.warn("Ova funkcija ne radi kako treba");
         if (fromCurrency.equalsIgnoreCase("RSD") || toCurrency.equalsIgnoreCase("RSD")) {
             throw new RuntimeException("Ova metoda je samo za konverziju strane valute u stranu valutu.");
         }

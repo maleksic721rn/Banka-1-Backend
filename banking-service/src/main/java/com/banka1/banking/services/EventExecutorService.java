@@ -108,7 +108,6 @@ public class EventExecutorService {
             taskScheduler.schedule(() -> attemptDelivery(event, attempt + 1), Instant.now().plus(RETRY_DELAY));
         } else if (status == DeliveryStatus.SUCCESS) {
             eventService.changeEventStatus(event, DeliveryStatus.SUCCESS);
-
             if (event.getMessageType() == InterbankMessageType.NEW_TX) {
                 handleNewTxSuccess(event, responseBody);
             }
@@ -130,6 +129,7 @@ public class EventExecutorService {
 
 
     public void handleNewTxSuccess(Event event, String responseBody) {
+        System.out.println("Handling new transaction success for event: " + event.getId());
         try {
             System.out.println("Handling new transaction success for event: " + event.getId());
             String actualJson = new ObjectMapper().readValue(responseBody, String.class);

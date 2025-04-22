@@ -68,7 +68,7 @@ presubmits:
               go install github.com/swaggo/swag/cmd/swag@latest
               go install
               go test ./...
-              docker build --no-cache -t a:a .
+              /home/prow/go/bin/swag init
           securityContext:
             privileged: true
           imagePullPolicy: Always

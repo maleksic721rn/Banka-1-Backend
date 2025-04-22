@@ -138,7 +138,7 @@ public class InterbankService implements InterbankOperationService {
 
         try {
             Thread.sleep(1000);
-            sendInterbankMessage(transaction, "http://localhost:8082/interbank");
+            sendInterbankMessage(transaction, "http://localhost:8083/interbank");
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
@@ -387,7 +387,7 @@ public class InterbankService implements InterbankOperationService {
 
         try {
             Thread.sleep(1000);
-            sendInterbankMessage(message, "http://localhost:8082/interbank");
+            sendInterbankMessage(message, "http://localhost:8083/interbank");
 
             transferService.commitForeignBankTransfer(event.getIdempotenceKey());
         } catch (InterruptedException e) {
@@ -411,7 +411,7 @@ public class InterbankService implements InterbankOperationService {
 
         try {
             Thread.sleep(1000);
-            sendInterbankMessage(message, "http://localhost:8082/interbank");
+            sendInterbankMessage(message, "http://localhost:8083/interbank");
 
             transferService.rollbackForeignBankTransfer(event.getIdempotenceKey());
         } catch (InterruptedException e) {

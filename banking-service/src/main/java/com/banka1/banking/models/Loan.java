@@ -4,6 +4,7 @@ import com.banka1.banking.models.helper.CurrencyType;
 import com.banka1.banking.models.helper.InterestType;
 import com.banka1.banking.models.helper.LoanType;
 import com.banka1.banking.models.helper.PaymentStatus;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -66,6 +67,7 @@ public class Loan {
     private Integer numberOfPaidInstallments = 0;
 
     @Column(nullable = false)
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "dd/MM/yyyy")
     private LocalDate nextPaymentDate;
 
     @Column(nullable = false)
