@@ -192,28 +192,42 @@ public class AccountService {
         List<Transaction> transactionsFrom = transactionRepository.findByFromAccountId(account);
         List<Transaction> transactionsTo = transactionRepository.findByToAccountId(account);
 
-        List<Transaction> allTransactions = new ArrayList<>(transactionsFrom);
+        List<Transaction> allTransactions = new ArrayList<>();
+        allTransactions.addAll(transactionsFrom);
+        allTransactions.addAll(transactionsTo);
 
-        for (Transaction transaction : transactionsTo) {
-            if (!Objects.equals(transaction.getFromAccountId().getId(), accountId)) {
-                allTransactions.add(transaction);
+        // Postavi dummy account gde fali
+        for (Transaction transaction : allTransactions) {
+            if (transaction.getToAccountId() == null) {
+                Account dummyTo = new Account();
+                dummyTo.setId(0L);
+                dummyTo.setAccountNumber(transaction.getTransfer() != null ? transaction.getTransfer().getNote() : "foreign");
+                transaction.setToAccountId(dummyTo);
+            }
+
+            if (transaction.getFromAccountId() == null) {
+                Account dummyFrom = new Account();
+                dummyFrom.setId(0L);
+                dummyFrom.setAccountNumber("foreign");
+                transaction.setFromAccountId(dummyFrom);
             }
         }
 
-        if(!Objects.equals(bankAccountUtils.getBankAccountForCurrency(CurrencyType.RSD).getOwnerID(), account.getOwnerID()))
+        if (!Objects.equals(bankAccountUtils.getBankAccountForCurrency(CurrencyType.RSD).getOwnerID(), account.getOwnerID()))
             allTransactions.removeIf(Transaction::getBankOnly);
 
         List<TransactionResponseDTO> responseDTOs = new ArrayList<>();
         for (Transaction transaction : allTransactions) {
             TransactionResponseDTO dto = modelMapper.map(transaction, TransactionResponseDTO.class);
 
-            if (dto.getFromAccountId() != null) {
+            if (dto.getFromAccountId() != null && dto.getFromAccountId().getOwnerID() != null) {
                 CustomerDTO sender = userServiceCustomer.getCustomerById(dto.getFromAccountId().getOwnerID());
                 dto.setSenderName(sender.getFirstName() + " " + sender.getLastName());
             } else {
                 dto.setSenderName("Strana banka");
             }
-            if (dto.getToAccountId() != null) {
+
+            if (dto.getToAccountId() != null && dto.getToAccountId().getOwnerID() != null) {
                 CustomerDTO receiver = userServiceCustomer.getCustomerById(dto.getToAccountId().getOwnerID());
                 dto.setReceiverName(receiver.getFirstName() + " " + receiver.getLastName());
             } else {
@@ -225,6 +239,7 @@ public class AccountService {
 
         return responseDTOs;
     }
+
 
     public static String generateAccountNumber(Account account){
         StringBuilder sb = new StringBuilder();

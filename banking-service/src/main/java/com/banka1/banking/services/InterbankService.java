@@ -172,8 +172,13 @@ public class InterbankService implements InterbankOperationService {
                         messageDto,
                         objectMapper.getTypeFactory().constructParametricType(InterbankMessageDTO.class, CommitTransactionDTO.class)
                 );
-
-                handleCommitTXRequest(properCommitTx);
+                try {
+                    handleCommitTXRequest(properCommitTx);
+                } catch (Exception e) {
+                    response.setVote("NO");
+                    response.setReasons(List.of(new VoteReasonDTO("COMMIT_TX_FAILED", null)));
+                    return response;
+                }
                 response.setVote("YES");
                 break;
             case ROLLBACK_TX :
@@ -265,6 +270,7 @@ public class InterbankService implements InterbankOperationService {
         // check if all postings are monetary
         VoteDTO response = new VoteDTO();
         try {
+
             InterbankTransactionDTO message = messageDto.getMessage();
             List<PostingDTO> postings = message.getPostings();
 

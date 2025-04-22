@@ -105,30 +105,30 @@ public class FirebaseServiceTest {
         }
     }
 
-//    @Test
-//    public void testSendNotificationToCustomer() {
-//
-//        String title = "Test Title";
-//        String body = "Test Body";
-//        Long customerId = 123L;
-//
-//        CustomerDevice device1 = new CustomerDevice();
-//        device1.setDeviceToken("device-token-1");
-//
-//        CustomerDevice device2 = new CustomerDevice();
-//        device2.setDeviceToken("device-token-2");
-//
-//        when(customerDeviceRepository.findByCustomerId(customerId)).thenReturn(List.of(device1, device2));
-//
-//
-//        FirebaseService spyFirebaseService = spy(firebaseService);
-//        doNothing().when(spyFirebaseService).sendNotification(anyString(), anyString(), anyString(), any());
-//
-//
-//        spyFirebaseService.sendNotificationToCustomer(title, body, customerId, testData);
-//
-//
-//        verify(spyFirebaseService, times(1)).sendNotification(eq(title), eq(body), eq("device-token-1"), eq(testData));
-//        verify(spyFirebaseService, times(1)).sendNotification(eq(title), eq(body), eq("device-token-2"), eq(testData));
-//    }
+    @Test
+    public void testSendNotificationToCustomer() {
+
+        String title = "Test Title";
+        String body = "Test Body";
+        Long customerId = 123L;
+
+        CustomerDevice device1 = new CustomerDevice();
+        device1.setDeviceToken("device-token-1");
+
+        CustomerDevice device2 = new CustomerDevice();
+        device2.setDeviceToken("device-token-2");
+
+        when(customerDeviceRepository.findByCustomerId(customerId)).thenReturn(List.of(device1, device2));
+
+
+        FirebaseService spyFirebaseService = spy(firebaseService);
+        doNothing().when(spyFirebaseService).sendNotification(anyString(), anyString(), anyString(), any());
+
+
+        spyFirebaseService.sendNotificationToCustomer(title, body, customerId, testData);
+
+
+        verify(spyFirebaseService, times(1)).sendNotification(eq(title), eq(body), eq("device-token-1"), eq(testData));
+        verify(spyFirebaseService, times(1)).sendNotification(eq(title), eq(body), eq("device-token-2"), eq(testData));
+    }
 }

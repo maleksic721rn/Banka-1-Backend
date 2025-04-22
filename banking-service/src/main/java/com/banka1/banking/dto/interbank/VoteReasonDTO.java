@@ -9,4 +9,7 @@ import lombok.Data;
 public class VoteReasonDTO {
     private String reason; // npr. "NO_SUCH_ACCOUNT", "UNSUPPORTED_ASSET", itd.
     private PostingDTO posting; // isti format kao u zahtevu
+
+    public VoteReasonDTO() {
+    }
 }

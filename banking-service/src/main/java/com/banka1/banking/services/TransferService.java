@@ -529,31 +529,15 @@ public class TransferService {
         }
 
         try {
-            System.out.println("Processing foreign bank transfer");
             System.out.println(fromAccount.getBalance() + " - " + amount);
             fromAccount.setBalance(fromAccount.getBalance() - amount);
             fromAccount.setReservedBalance(fromAccount.getReservedBalance() + amount);
 
             accountRepository.save(fromAccount);
 
-//            Transaction debitTransaction = new Transaction();
-//            debitTransaction.setFromAccountId(fromAccount);
-//            debitTransaction.setToAccountId(null);
-//            debitTransaction.setAmount(amount);
-//            debitTransaction.setCurrency(transfer.getFromCurrency());
-//
-//            debitTransaction.setFee(0.0);
-//            debitTransaction.setFinalAmount(transfer.getAmount());
-//
-//            debitTransaction.setTimestamp(Instant.now().toEpochMilli());
-//            debitTransaction.setDescription("Debit transaction for transfer " + transfer.getId());
-//            debitTransaction.setTransfer(transfer);
-//            transactionRepository.save(debitTransaction);
-
             interbankService.sendNewTXMessage(transfer);
 
             transfer.setStatus(TransferStatus.RESERVED);
-            System.out.println("Transfer reserved");
             transfer.setCompletedAt(Instant.now().toEpochMilli());
             transferRepository.save(transfer);
 

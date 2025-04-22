@@ -13,7 +13,7 @@ public class Transaction {
     private Long id;
 
     @ManyToOne
-    @JoinColumn(name = "from_account_id", nullable = false)
+    @JoinColumn(name = "from_account_id", nullable = true)
     private Account fromAccountId;
 
     @ManyToOne

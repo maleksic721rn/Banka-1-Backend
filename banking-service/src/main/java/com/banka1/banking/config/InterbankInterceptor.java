@@ -24,35 +24,27 @@ public class InterbankInterceptor implements HandlerInterceptor {
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws IOException {
-        System.out.println("Pre-handle interceptor for interbank requests" + request.getRequestURI());
         if (request.getRequestURI().contains("/interbank") && "POST".equalsIgnoreCase(request.getMethod())) {
             System.out.println("Received webhook request");
             String rawPayload = request.getReader().lines().collect(Collectors.joining(System.lineSeparator()));
 
             Event event;
 
-            System.out.println(1);
             try {
                 if (rawPayload == null || rawPayload.isEmpty()) {
-                    System.out.println(2);
                     event = eventService.receiveEvent(new InterbankMessageDTO<>(), "", request.getRemoteAddr());
                     request.setAttribute("event", event);
                     request.setAttribute("startTime", System.currentTimeMillis());
                 } else {
-                    System.out.println(3);
                     InterbankMessageDTO<?> dto = objectMapper.readValue(rawPayload, InterbankMessageDTO.class);
-                    System.out.println(3.1);
                     event = eventService.receiveEvent(dto, rawPayload, request.getRemoteAddr());
-                    System.out.println(3.2);
                 }
             } catch (IOException e) {
-                System.out.println(4);
                 response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
                 response.setContentType("application/json");
                 response.getWriter().write("{\"success\": false, \"error\": \"" + e.getMessage().replace("\"", "'") + "\"}");
                 return false;
             }
-            System.out.println(5);
 
             request.setAttribute("event", event);
             request.setAttribute("startTime", System.currentTimeMillis());
