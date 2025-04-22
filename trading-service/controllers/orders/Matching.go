@@ -357,24 +357,10 @@ func executePartial(order1 *types.Order, price float64, tx *gorm.DB) int {
 					return err
 				}
 
-				// Update UsedLimit za agenta ako učestvuje
-				if isAgent(match.UserID) {
-					var actuary types.Actuary
-					if err := tx.Where("user_id = ?", match.UserID).First(&actuary).Error; err == nil {
-						initialMargin := price * float64(matchQty) * 0.3 * 1.1
-						actuary.UsedLimit += initialMargin
-						if err := tx.Save(&actuary).Error; err != nil {
-							fmt.Printf("Greska pri save UsedLimit za match agenta: %v\n", err)
-						} else {
-							fmt.Printf("Agent match.UserID=%d - povećan UsedLimit za %.2f\n", match.UserID, initialMargin)
-						}
-					}
-				}
-
-				if isAgent(order1.UserID) {
+				if isAgent(getBuyerID(*order1, match)) {
 					var actuary types.Actuary
 					if err := tx.Where("user_id = ?", order1.UserID).First(&actuary).Error; err == nil {
-						initialMargin := price * float64(matchQty) * 0.3 * 1.1
+						initialMargin := price * float64(matchQty)
 						actuary.UsedLimit += initialMargin
 						if err := tx.Save(&actuary).Error; err != nil {
 							fmt.Printf("Greska pri save UsedLimit za order agenta: %v\n", err)
@@ -546,24 +532,10 @@ func executePartial(order1 *types.Order, price float64, tx *gorm.DB) int {
 					}
 				}
 
-				// Update UsedLimit za agenta ako učestvuje
-				if isAgent(match.UserID) {
-					var actuary types.Actuary
-					if err := tx.Where("user_id = ?", match.UserID).First(&actuary).Error; err == nil {
-						initialMargin := price * float64(matchQty) * 0.3 * 1.1
-						actuary.UsedLimit += initialMargin
-						if err := tx.Save(&actuary).Error; err != nil {
-							fmt.Printf("Greska pri save UsedLimit za match agenta: %v\n", err)
-						} else {
-							fmt.Printf("Agent match.UserID=%d - povećan UsedLimit za %.2f\n", match.UserID, initialMargin)
-						}
-					}
-				}
-
-				if isAgent(order.UserID) {
+				if isAgent(getBuyerID(*order1, match)) {
 					var actuary types.Actuary
 					if err := tx.Where("user_id = ?", order.UserID).First(&actuary).Error; err == nil {
-						initialMargin := price * float64(matchQty) * 0.3 * 1.1
+						initialMargin := price * float64(matchQty)
 						actuary.UsedLimit += initialMargin
 						if err := tx.Save(&actuary).Error; err != nil {
 							fmt.Printf("Greska pri save UsedLimit za order agenta: %v\n", err)
@@ -666,7 +638,7 @@ func calculateDelay(order types.Order) time.Duration {
 func getExecutableParts(order types.Order) int {
 	var matchingOrders []types.Order
 	direction := "buy"
-	if order.Direction == "buy" {
+	if strings.ToLower(order.Direction) == "buy" {
 		direction = "sell"
 	} else {
 		direction = "buy"
@@ -837,8 +809,8 @@ func getBuyerAccountID(a, b types.Order) uint {
 	}
 
 	if isAgent(buyerID) {
-		fmt.Println("Buyer je agent, preusmeravam BuyerAccountId na 18 (bankovni racun)")
-		return 18
+		fmt.Println("Buyer je agent, preusmeravam BuyerAccountId na (bankovni racun)")
+		return 112
 	}
 
 	return buyerAccountID
@@ -853,8 +825,8 @@ func getSellerAccountID(a, b types.Order) uint {
 	}
 
 	if isAgent(sellerID) {
-		fmt.Println("Seller je agent, preusmeravam SellerAccountId na 18 (bankovni racun)")
-		return 18
+		fmt.Println("Seller je agent, preusmeravam SellerAccountId na (bankovni racun)")
+		return 112
 	}
 
 	return sellerAccountID
@@ -895,5 +867,5 @@ func isAgent(userID uint) bool {
 	if err := db.DB.Where("user_id = ?", userID).First(&actuary).Error; err != nil {
 		return false
 	}
-	return actuary.Department == "agent"
+	return strings.ToLower(actuary.Department) == "agent"
 }

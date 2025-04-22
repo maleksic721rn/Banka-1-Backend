@@ -173,7 +173,6 @@ public class OrderService {
         transaction.setDate(LocalDate.now());
         transaction.setTime(LocalTime.now());
 
-
         transactionRepository.save(transaction);
 
         System.out.println("=== ZAVRŠEN processOrderTransaction ===");
