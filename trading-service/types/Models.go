@@ -11,7 +11,7 @@ type Actuary struct {
 	LimitAmount  float64 `gorm:"default:null" json:"limit"`         // Samo za agente
 	UsedLimit    float64 `gorm:"default:0" json:"usedLimit"`        // Samo za agente, resetuje se dnevno
 	NeedApproval bool    `gorm:"default:false" json:"needApproval"` // Da li orderi agenta trebaju supervizorsko odobrenje
-	Position     string  `gorm:"type:text;not null" json:"position,omitempty"`
+	Position     string  `gorm:"type:text" json:"position,omitempty"`
 }
 
 type Security struct {
