@@ -18,6 +18,8 @@ import org.springframework.transaction.annotation.Transactional;
 import com.banka1.banking.repository.TransactionRepository;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.Objects;
 
 @Service
@@ -169,6 +171,8 @@ public class OrderService {
         transaction.setToAccountId(seller);
         transaction.setTransfer(transfer);
         transaction.setBankOnly(false);
+        transaction.setDate(LocalDate.now());
+        transaction.setTime(LocalTime.now());
 
         transactionRepository.save(transaction);
 
