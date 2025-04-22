@@ -94,6 +94,7 @@ jacocoTestReport {
                 "**/model/**",
                 "**/dto/**",
                 "**/controller/**",
+                "**/security/**",
                 "**/*Controller.*"
             ])
         }))

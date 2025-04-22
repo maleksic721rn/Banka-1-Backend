@@ -2,8 +2,8 @@ package com.banka1.banking.controllers;
 
 import com.banka1.banking.dto.OrderTransactionInitiationDTO;
 import com.banka1.banking.services.OrderService;
-
 import com.banka1.banking.utils.ResponseTemplate;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -24,7 +24,7 @@ public class OrderController {
 	public record OrderDTO(String direction, Long accountId, Long userId, Double amount, Double fee) {}
 
     @PostMapping("/execute/")
-//    @PreAuthorize("hasAuthority('SCOPE_trading-service')")
+    @PreAuthorize("hasAuthority('SCOPE_trading-service')")
     public ResponseEntity<?> executeOrder(@RequestBody OrderDTO order) {
         try {
             String direction = order.direction;
@@ -50,7 +50,7 @@ public class OrderController {
 	public record InitiationDTO(String uid, Long buyerAccountId, Long sellerAccountId, Double amount) {}
 
     @PostMapping("/initiate/")
-//    @PreAuthorize("hasAuthority('SCOPE_trading-service')")
+    @PreAuthorize("hasAuthority('SCOPE_trading-service')")
     public ResponseEntity<?> initiateOrderTransaction(@RequestBody InitiationDTO initiationDto) {
         try {
             String uid = initiationDto.uid;

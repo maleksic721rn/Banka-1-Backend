@@ -9,6 +9,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -35,6 +36,22 @@ public class GlobalExceptionHandler {
         );
     }
 
+
+    // NOTE: in production, these should probably return 403 no info
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<?> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
+        Map<String, String> errors = new HashMap<>();
+        errors.put(ex.getName(), "Invalid value: " + ex.getValue());
+
+
+        return ResponseTemplate.create(
+                ResponseEntity.status(HttpStatus.BAD_REQUEST),
+                false,
+                errors,
+                "Invalid type"
+        );
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<?> handleValidationErrors(MethodArgumentNotValidException ex) {
         Map<String, String> errors = new HashMap<>();
@@ -43,7 +60,6 @@ public class GlobalExceptionHandler {
             errors.put(error.getField(), error.getDefaultMessage());
         });
 
-        System.out.println(errors);
 
         return ResponseTemplate.create(
                 ResponseEntity.status(HttpStatus.BAD_REQUEST),
