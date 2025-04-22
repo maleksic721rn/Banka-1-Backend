@@ -585,7 +585,7 @@ func (oc *OrderController) CancelOrder(c *fiber.Ctx) error {
 //
 //	@Summary		Obračun realizovanog profita
 //	@Description	Računa ukupni ostvareni profit korisnika na osnovu izvršenih transakcija (FIFO).
-//	@Tags			Orders
+//	@Tags			Profit
 //	@Produce		json
 //	@Param			id	path	int	true	"ID korisnika za kog se računa profit"
 //	@Success		200	{object}	types.Response{data=dto.RealizedProfitResponse}	"Uspešno vraćen obračun profita"
@@ -612,6 +612,31 @@ func (oc *OrderController) GetRealizedProfit(c *fiber.Ctx) error {
 			})
 		}
 		// Sve ostalo tretiraj kao internu grešku
+		return c.Status(500).JSON(types.Response{
+			Success: false,
+			Error:   "Greška prilikom obračuna profita: " + err.Error(),
+		})
+	}
+
+	return c.JSON(types.Response{
+		Success: true,
+		Data:    profit,
+	})
+}
+
+// GetBankProfit godoc
+//
+//	@Summary		Obračun profita banke
+//	@Description	Računa ukupni ostvareni profit banke po mesecu.
+//	@Tags			Profit
+//	@Produce		json
+//	@Param			id	path	int	true	"ID korisnika za kog se računa profit"
+//	@Success		200	{object}	types.Response{data=[]dto.MonthlyProfitResponse}	"Uspešno vraćen obračun profita"
+//	@Failure		500	{object}	types.Response										"Greška prilikom obračuna profita"
+//	@Router			/profit/bank [get]
+func (oc *OrderController) GetBankProfit(c *fiber.Ctx) error {
+	profit, err := services.CalculateBankProfitByMonth()
+	if err != nil {
 		return c.Status(500).JSON(types.Response{
 			Success: false,
 			Error:   "Greška prilikom obračuna profita: " + err.Error(),
@@ -674,6 +699,7 @@ func InitOrderRoutes(app *fiber.App) {
 	app.Post("/orders/:id/decline", middlewares.Auth, middlewares.DepartmentCheck("SUPERVISOR"), orderController.DeclineOrder)
 	app.Post("/orders/:id/approve", middlewares.Auth, middlewares.DepartmentCheck("SUPERVISOR"), orderController.ApproveOrder)
 	app.Post("/orders/:id/cancel", middlewares.Auth, orderController.CancelOrder)
+	app.Get("/profit/bank", orderController.GetBankProfit)
 	app.Get("/profit/:id", orderController.GetRealizedProfit)
 	app.Post("/orders/initiate-transaction", orderController.InitiateOrderTransaction)
 }

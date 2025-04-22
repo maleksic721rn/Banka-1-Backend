@@ -1,10 +1,12 @@
 package services
 
 import (
+	"fmt"
+	"strconv"
+
 	"banka1.com/db"
 	"banka1.com/dto"
 	"banka1.com/types"
-	"fmt"
 )
 
 type buyLot struct {
@@ -88,9 +90,53 @@ func CalculateRealizedProfit(userID uint) (*dto.RealizedProfitResponse, error) {
 	}, nil
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
+func CalculateBankProfitByMonth() (*[]dto.MonthlyProfitResponse, error) {
+	rows, err := db.DB.Raw(`
+SELECT m, COALESCE(SUM(sell - buy), 0), COALESCE(SUM(fee), 0)
+FROM (SELECT
+TO_CHAR(created_at, 'YYYY-MM') AS m,
+fee,
+CASE WHEN buyer_id IN (SELECT user_id FROM actuary) THEN total_price ELSE 0 END AS buy,
+CASE WHEN seller_id IN (SELECT user_id FROM actuary) THEN total_price ELSE 0 END AS sell
+FROM transactions)
+GROUP BY m
+ORDER BY m;`).Rows()
+	defer rows.Close()
+
+	if err != nil {
+		return nil, fmt.Errorf("Neuspelo izvrsavanje upita: %w", err)
 	}
-	return b
+
+	var responses []dto.MonthlyProfitResponse
+
+	for rows.Next() {
+		var yearMonth string
+		var actuaryProfit float64
+		var fees float64
+
+		err := rows.Scan(&yearMonth, &actuaryProfit, &fees)
+		if err != nil {
+			return nil, fmt.Errorf("Neuspelo uzimanje reda iz baze: %w", err)
+		}
+
+		year, err := strconv.ParseUint(yearMonth[:4], 10, 0)
+		if err != nil {
+			return nil, err
+		}
+
+		month, err := strconv.ParseUint(yearMonth[5:], 10, 0)
+		if err != nil {
+			return nil, err
+		}
+
+		responses = append(responses, dto.MonthlyProfitResponse{
+			Year:          uint(year),
+			Month:         uint(month),
+			ActuaryProfit: actuaryProfit,
+			Fees:          fees,
+			Total:         actuaryProfit + fees,
+		})
+	}
+
+	return &responses, nil
 }
