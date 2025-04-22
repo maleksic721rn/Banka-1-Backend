@@ -1,13 +1,6 @@
 package main
 
 import (
-	"banka1.com/exchanges"
-	"banka1.com/listings/forex"
-	"banka1.com/listings/futures"
-	"banka1.com/listings/option"
-	"banka1.com/listings/securities"
-	"banka1.com/listings/stocks"
-	"banka1.com/listings/tax"
 	"banka1.com/oauth"
 	"banka1.com/routes"
 	"banka1.com/services"
@@ -57,71 +50,8 @@ func main() {
 		ClientSecret: os.Getenv("CLIENT_SECRET"),
 		Scopes:       []string{"openid", "profile", "email", "trading-service"},
 	}
+
 	services.GetOAuthService().Initialize(oauthConfig)
-
-	err = exchanges.LoadDefaultExchanges()
-	if err != nil {
-		log.Printf("Warning: Failed to load exchanges: %v", err)
-	}
-
-	log.Println("Starting to load default stocks...")
-	stocks.LoadDefaultStocks()
-	log.Println("Finished loading default stocks")
-
-	log.Println("Starting to load default forex pairs...")
-	forex.LoadDefaultForexPairs()
-	log.Println("Finished loading default forex pairs")
-
-	log.Println("Starting to load default futures...")
-	err = futures.LoadDefaultFutures()
-	if err != nil {
-		log.Printf("Warning: Failed to load futures: %v", err)
-	}
-	log.Println("Finished loading default futures")
-
-	log.Println("Starting to load default options...")
-	err = option.LoadAllOptions()
-	if err != nil {
-		log.Printf("Warning: Failed to load options: %v", err)
-	}
-	log.Println("Finished loading default options")
-
-	log.Println("Starting to load default securities...")
-	securities.LoadAvailableSecurities()
-	log.Println("Finished loading default securities")
-
-	log.Println("Starting to load default taxes...")
-	tax.LoadTax()
-	log.Println("Finished loading default taxes")
-
-	log.Println("Starting to load default orders...")
-	orders.LoadOrders()
-	log.Println("Finished loading default orders")
-
-	log.Println("Starting to load default portfolios...")
-	orders.LoadPortfolios()
-	log.Println("Finished loading default portfolios")
-
-	log.Println("Starting to load default sell orders...")
-	orders.CreateInitialSellOrdersFromBank()
-	log.Println("Finished loading default sell orders")
-
-	// Ovo je bilo za prvobitno registrovanje volume - ali je zakoentarisano zato sto
-	// 	orders.CreateInitialSellOrdersFromBank() ucitava sell ordere i usput azurira Volume
-
-	//log.Println("Starting to calculate volumes for all securities...")
-	//var securities []types.Security
-	//if err := db.DB.Find(&securities).Error; err != nil {
-	//	log.Printf("Warning: Failed to fetch securities for volume update: %v", err)
-	//} else {
-	//	for _, sec := range securities {
-	//		err := orders.UpdateAvailableVolume(sec.ID)
-	//		if err != nil {
-	//			log.Printf("Warning: Failed to update volume for security %s (ID %d): %v", sec.Ticker, sec.ID, err)
-	//		}
-	//	}
-	//}
-	//log.Println("Finished calculating volumes")
 
 	cron.StartScheduler()
 
