@@ -19,6 +19,7 @@ import com.banka1.banking.repository.TransactionRepository;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.Objects;
 
@@ -170,8 +171,8 @@ public class OrderService {
         transaction.setToAccountId(seller);
         transaction.setTransfer(transfer);
         transaction.setBankOnly(false);
-        transaction.setDate(LocalDate.now());
-        transaction.setTime(LocalTime.now());
+        transaction.setDate(LocalDateTime.now().toString());
+        transaction.setTime(LocalTime.now().toString());
 
         transactionRepository.save(transaction);
 
