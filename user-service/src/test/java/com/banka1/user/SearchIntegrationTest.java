@@ -1,5 +1,7 @@
 package com.banka1.user;
 
+import com.banka1.testing.config.JwtTestConfiguration;
+import com.banka1.testing.jwt.JwtTestUtils;
 import com.banka1.user.DTO.request.LoginRequest;
 import com.banka1.user.service.BlackListTokenService;
 import org.junit.jupiter.api.AfterEach;
@@ -8,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.*;
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.test.context.ActiveProfiles;
@@ -19,6 +22,8 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@ActiveProfiles({"test", "postgres"})
+@Import(JwtTestConfiguration.class)
 public class SearchIntegrationTest {
     @LocalServerPort
     private int port;
@@ -254,15 +259,6 @@ public class SearchIntegrationTest {
     }
 
     private String loginAsAdmin() {
-        LoginRequest loginRequest = new LoginRequest();
-        loginRequest.setEmail("admin@admin.com");
-        loginRequest.setPassword("admin123");
-
-        @SuppressWarnings("rawtypes") ResponseEntity<Map> loginResponse = restTemplate.postForEntity(getBaseUrl() + "/auth/login", loginRequest, Map.class);
-
-        assertNotNull(loginResponse.getBody());
-        @SuppressWarnings("unchecked")
-        var token = (String) ((Map<String, Object>) loginResponse.getBody().get("data")).get("token");
-        return token;
+        return JwtTestUtils.generateAdminToken();
     }
 }
