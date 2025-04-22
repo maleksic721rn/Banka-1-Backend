@@ -24,6 +24,4 @@ public interface ReceiverRepository extends JpaRepository<Receiver, Long> {
     void deleteById(Long id);
 
     boolean existsByCustomerId(Long id);
-
-
 }
