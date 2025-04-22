@@ -5,6 +5,7 @@ go 1.24.1
 require (
 	github.com/Finnhub-Stock-API/finnhub-go/v2 v2.0.19
 	github.com/glebarez/sqlite v1.11.0
+	github.com/go-co-op/gocron v1.37.0
 	github.com/go-playground/validator/v10 v10.25.0
 	github.com/gofiber/contrib/jwt v1.1.0
 	github.com/gofiber/fiber/v2 v2.52.6
@@ -28,6 +29,7 @@ require (
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/mailru/easyjson v0.9.0 // indirect
 	github.com/swaggo/files v1.0.1 // indirect
+	go.uber.org/atomic v1.9.0 // indirect
 	golang.org/x/tools v0.31.0 // indirect
 )
 
