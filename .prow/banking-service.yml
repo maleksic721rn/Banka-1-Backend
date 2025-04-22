@@ -92,7 +92,7 @@ presubmits:
               # testove. Moguće je više puta pokrenuti "docker compose up" za različite
               # Docker Compose servise.
               
-              docker compose up -d banking-db message-broker user-db
+              docker compose up -d banking-db message-broker user-db 
               
             
               # TODO: Move this back into docker compose
