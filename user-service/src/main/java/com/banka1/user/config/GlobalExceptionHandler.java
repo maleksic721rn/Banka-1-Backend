@@ -18,39 +18,39 @@ import java.util.Map;
 @Hidden
 @RestControllerAdvice
 public class GlobalExceptionHandler {
-
-    @ExceptionHandler(RuntimeException.class)
-    public ResponseEntity<?> handleRuntime(RuntimeException ex) {
-        if (ex instanceof AccessDeniedException e) {
-            throw e;
-        }
-
-        log.error("Unhandled exception: ", ex);
-        return ResponseTemplate.create(
-                ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR),
-                false,
-                Map.of(
-                        "stacktrace", ex.getStackTrace()
-                ),
-                ex.getMessage()
-        );
-    }
-
-    @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<?> handleValidationErrors(MethodArgumentNotValidException ex) {
-        Map<String, String> errors = new HashMap<>();
-
-        ex.getBindingResult().getFieldErrors().forEach(error -> {
-            errors.put(error.getField(), error.getDefaultMessage());
-        });
-
-        System.out.println(errors);
-
-        return ResponseTemplate.create(
-                ResponseEntity.status(HttpStatus.BAD_REQUEST),
-                false,
-                errors,
-                "Validation failed"
-        );
-    }
+//
+//    @ExceptionHandler(RuntimeException.class)
+//    public ResponseEntity<?> handleRuntime(RuntimeException ex) {
+//        if (ex instanceof AccessDeniedException e) {
+//            throw e;
+//        }
+//
+//        log.error("Unhandled exception: ", ex);
+//        return ResponseTemplate.create(
+//                ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR),
+//                false,
+//                Map.of(
+//                        "stacktrace", ex.getStackTrace()
+//                ),
+//                ex.getMessage()
+//        );
+//    }
+//
+//    @ExceptionHandler(MethodArgumentNotValidException.class)
+//    public ResponseEntity<?> handleValidationErrors(MethodArgumentNotValidException ex) {
+//        Map<String, String> errors = new HashMap<>();
+//
+//        ex.getBindingResult().getFieldErrors().forEach(error -> {
+//            errors.put(error.getField(), error.getDefaultMessage());
+//        });
+//
+//        System.out.println(errors);
+//
+//        return ResponseTemplate.create(
+//                ResponseEntity.status(HttpStatus.BAD_REQUEST),
+//                false,
+//                errors,
+//                "Validation failed"
+//        );
+//    }
 }

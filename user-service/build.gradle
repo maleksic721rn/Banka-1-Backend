@@ -55,6 +55,8 @@ dependencies {
     implementation 'org.modelmapper:modelmapper:3.1.1'
     implementation 'org.springframework.boot:spring-boot-starter-security'
 
+    testImplementation project(":test-support")
+
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.security:spring-security-test'
 

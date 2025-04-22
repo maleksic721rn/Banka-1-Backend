@@ -20,6 +20,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.jms.core.JmsTemplate;
+import org.springframework.security.crypto.factory.PasswordEncoderFactories;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Optional;
@@ -53,6 +55,8 @@ class ResetPasswordServiceTest {
     @Captor
     private ArgumentCaptor<ResetPassword> resetPasswordCaptor;
 
+    private final PasswordEncoder pe = PasswordEncoderFactories.createDelegatingPasswordEncoder();
+
     private final String testEmail = "test@example.com";
     private final String destinationEmail = "queue.email";
 
@@ -60,7 +64,7 @@ class ResetPasswordServiceTest {
     void setup() {
         resetPasswordService = new ResetPasswordService(
                 customerRepository, resetPasswordRepository, employeeRepository,
-                jmsTemplate, messageHelper, destinationEmail
+                jmsTemplate, messageHelper, destinationEmail, pe
         );
     }
 
