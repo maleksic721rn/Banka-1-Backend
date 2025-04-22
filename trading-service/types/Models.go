@@ -58,26 +58,46 @@ type Order struct {
 	ApprovedByUser    *uint    `gorm:"foreignKey:ApprovedBy"`
 }
 
+//	type OTCTrade struct {
+//		ID           uint      `gorm:"primaryKey"`
+//		PortfolioID  uint      `gorm:"not null"`
+//		SecurityId   uint      `gorm:"not null"`
+//		SellerID     uint      `gorm:"not null"`
+//		BuyerID      *uint     `gorm:"default:null"`
+//		Quantity     int       `gorm:"not null"`
+//		PricePerUnit float64   `gorm:"not null"`
+//		Premium      float64   `gorm:"not null"`
+//		SettlementAt time.Time `gorm:"not null"`
+//		Status       string    `gorm:"type:text;default:'pending'"`
+//		LastModified int64     `gorm:"autoUpdateTime"`
+//		//promeniti da pise ime korisnika koji je menjao a ne id(komunbikacija sa user servisom)
+//		ModifiedBy *uint `gorm:"default:null"`
+//		CreatedAt  int64 `gorm:"autoCreateTime"`
+//		//Seller       *uint      `gorm:"foreignKey:SellerID"`
+//		//Buyer        *uint     `gorm:"foreignKey:BuyerID"`
+//		Portfolio Portfolio `gorm:"foreignKey:PortfolioID" json:"portfolio"`
+//	}
 type OTCTrade struct {
-	ID           uint      `gorm:"primaryKey"`
-	PortfolioID  uint      `gorm:"not null"`
-	SecurityId   uint      `gorm:"not null"`
-	SellerID     uint      `gorm:"not null"`
-	BuyerID      *uint     `gorm:"default:null"`
-	Quantity     int       `gorm:"not null"`
-	PricePerUnit float64   `gorm:"not null"`
-	Premium      float64   `gorm:"not null"`
-	SettlementAt time.Time `gorm:"not null"`
-	Status       string    `gorm:"type:text;default:'pending'"`
-	LastModified int64     `gorm:"autoUpdateTime"`
-	//promeniti da pise ime korisnika koji je menjao a ne id(komunbikacija sa user servisom)
-	ModifiedBy *uint `gorm:"default:null"`
-	CreatedAt  int64 `gorm:"autoCreateTime"`
-	//Seller       *uint      `gorm:"foreignKey:SellerID"`
-	//Buyer        *uint     `gorm:"foreignKey:BuyerID"`
-	Portfolio Portfolio `gorm:"foreignKey:PortfolioID" json:"portfolio"`
+	ID                  uint       `gorm:"primaryKey" json:"id"`
+	PortfolioID         *uint      `gorm:"" json:"portfolioId,omitempty"`
+	SecurityID          *uint      `gorm:"" json:"securityId,omitempty"`
+	LocalSellerID       *uint      `gorm:"" json:"localSellerId,omitempty"`
+	LocalBuyerID        *uint      `gorm:"" json:"localBuyerId,omitempty"`
+	RemoteRoutingNumber *int       `gorm:"" json:"remoteRoutingNumber,omitempty"`
+	RemoteNegotiationID *string    `gorm:"" json:"remoteNegotiationId,omitempty"`
+	RemoteSellerID      *string    `gorm:"" json:"remoteSellerId,omitempty"`
+	RemoteBuyerID       *string    `gorm:"" json:"remoteBuyerId,omitempty"`
+	Ticker              string     `gorm:"not null" json:"ticker"`
+	Quantity            int        `gorm:"not null" json:"quantity"`
+	PricePerUnit        float64    `gorm:"not null" json:"pricePerUnit"`
+	Premium             float64    `gorm:"not null" json:"premium"`
+	SettlementAt        time.Time  `gorm:"not null" json:"settlementAt"`
+	Status              string     `gorm:"type:text;default:'pending'" json:"status"`
+	LastModified        int64      `gorm:"autoUpdateTime" json:"lastModified"`
+	ModifiedBy          string     `gorm:"not null" json:"modifiedBy"`
+	CreatedAt           int64      `gorm:"autoCreateTime" json:"createdAt"`
+	Portfolio           *Portfolio `gorm:"foreignKey:PortfolioID" json:"portfolio"`
 }
-
 type Portfolio struct {
 	ID            uint     `gorm:"primaryKey" json:"id,omitempty"`
 	UserID        uint     `gorm:"not null" json:"user_id,omitempty"`
@@ -131,6 +151,25 @@ type Exchange struct {
 	Timezone  string `gorm:"not null" json:"timezone,omitempty"`
 	OpenTime  string `gorm:"not null" json:"open_time,omitempty"`
 	CloseTime string `gorm:"not null" json:"close_time,omitempty"`
+}
+
+type InterbankNegotiation struct {
+	ID                     uint      `gorm:"primaryKey"`
+	Ticker                 string    `gorm:"not null"`
+	Amount                 int       `gorm:"not null"`
+	SettlementAt           time.Time `gorm:"not null"`
+	PricePerUnit           float64   `gorm:"not null"`
+	Premium                float64   `gorm:"not null"`
+	InitiatorRoutingNumber int       `gorm:"not null"`
+	InitiatorID            string    `gorm:"not null"`
+	LastModifiedByID       string    `gorm:"not null"`
+	LastModifiedRouting    int       `gorm:"not null"`
+	RemoteNegotiationID    string    `gorm:"not null"`
+	RemoteRoutingNumber    int       `gorm:"not null"`
+	Status                 string    `gorm:"default:'pending'"`
+	LocalBuyerUserID       *uint     `gorm:"default:null"`
+	CreatedAt              int64     `gorm:"autoCreateTime"`
+	UpdatedAt              int64     `gorm:"autoUpdateTime"`
 }
 
 type OTCSagaPhase int
