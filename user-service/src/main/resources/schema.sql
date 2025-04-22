@@ -47,7 +47,7 @@ ALTER TABLE user_permissions
 
 
 ALTER TABLE user_permissions
-    DROP CONSTRAINT customer_permissions_permission_check;
+    DROP CONSTRAINT IF EXISTS customer_permissions_permission_check;
 
 ALTER TABLE user_permissions
     ADD CONSTRAINT customer_permissions_permission_check
