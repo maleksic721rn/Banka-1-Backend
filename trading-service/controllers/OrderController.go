@@ -6,6 +6,7 @@ import (
 	"banka1.com/dto"
 	"banka1.com/middlewares"
 	"banka1.com/services"
+	"banka1.com/shared"
 	"banka1.com/types"
 	"encoding/json"
 	"fmt"
@@ -309,7 +310,7 @@ func (oc *OrderController) CreateOrder(c *fiber.Ctx) error {
 				})
 			}
 		} else {
-			client := &http.Client{}
+			client := shared.HttpClient()
 			req, _ := http.NewRequest("GET", fmt.Sprintf("%s/loans/has-approved-loan/%d", os.Getenv("BANKING_SERVICE"), orderRequest.UserID), nil)
 			//url := fmt.Sprintf("%s/orders/execute/%s", os.Getenv("BANKING_SERVICE"), token)
 
@@ -674,7 +675,9 @@ func (oc *OrderController) InitiateOrderTransaction(c *fiber.Ctx) error {
 	if err != nil {
 		return fiber.ErrInternalServerError
 	}
-	agent := fiber.Post(url)
+	agent := shared.FiberAgent()
+	agent.Request().SetRequestURI(url)
+	agent.Request().Header.SetMethod(http.MethodPost)
 	agent.Request().Header.Add("Authorization", authHeader)
 	statusCode, _, errs := agent.Bytes()
 

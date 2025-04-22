@@ -10,6 +10,7 @@ import (
 	"banka1.com/listings/stocks"
 	"banka1.com/listings/tax"
 	"banka1.com/services"
+	"banka1.com/shared"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -273,7 +274,7 @@ func GetActuaries() (*APIResponse, error) {
 	}
 
 	req.Header.Add("Authorization", authHeader)
-	client := &http.Client{}
+	client := shared.HttpClient()
 	resp, err := client.Do(req)
 
 	if err != nil {

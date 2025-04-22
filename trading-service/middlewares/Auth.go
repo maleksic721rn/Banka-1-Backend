@@ -28,7 +28,6 @@ func DepartmentCheck(requiredDept string) fiber.Handler {
 }
 
 func RequirePermission(requiredPermission string) fiber.Handler {
-	log.Infof("Checking for permission: %s", requiredPermission)
 	return func(c *fiber.Ctx) error {
 		permissions, ok := c.Locals("permissions").([]interface{})
 		if !ok {

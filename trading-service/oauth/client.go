@@ -1,8 +1,10 @@
 package oauth
 
 import (
+	"banka1.com/shared"
 	"context"
 	"fmt"
+	"net/http"
 	"sync"
 	"time"
 
@@ -23,7 +25,7 @@ type Client struct {
 	config       *clientcredentials.Config
 	currentToken *oauth2.Token
 	tokenMu      sync.RWMutex
-	// Optional: add a context for cancellation
+	httpClient   *http.Client
 }
 
 // NewOAuthClient creates a new OAuth client with the given configuration
@@ -36,8 +38,12 @@ func NewOAuthClient(config ClientConfig) *Client {
 		AuthStyle:    oauth2.AuthStyleInHeader,
 	}
 
+	// Use our shared HTTP client with configured SSL verification
+	httpClient := shared.HttpClient()
+
 	return &Client{
-		config: ccConfig,
+		config:     ccConfig,
+		httpClient: httpClient,
 	}
 }
 
@@ -68,6 +74,8 @@ func (c *Client) refreshToken() (*oauth2.Token, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+
+	ctx = context.WithValue(ctx, oauth2.HTTPClient, c.httpClient)
 
 	token, err := c.config.Token(ctx)
 	if err != nil {
