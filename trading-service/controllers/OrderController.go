@@ -255,7 +255,7 @@ func (oc *OrderController) CreateOrder(c *fiber.Ctx) error {
 	var approvedBy *uint = nil
 
 	if deptRaw := c.Locals("department"); deptRaw != nil {
-		if department, ok := deptRaw.(string); ok && department == "SUPERVISOR" {
+		if department, ok := deptRaw.(string); ok && (department == "SUPERVISOR" || department == "AGENT") {
 			status = "approved"
 			id := uint(userId)
 			approvedBy = &id

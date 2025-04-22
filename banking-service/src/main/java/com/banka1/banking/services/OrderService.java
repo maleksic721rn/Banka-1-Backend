@@ -18,6 +18,8 @@ import org.springframework.transaction.annotation.Transactional;
 import com.banka1.banking.repository.TransactionRepository;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.Objects;
 
 @Service
@@ -119,37 +121,9 @@ public class OrderService {
         System.out.println("Buyer Account found: " + buyer.getAccountNumber());
         System.out.println("Seller Account found: " + seller.getAccountNumber());
 
-        double exchangeRate = 110.0; // 1 USD = 110 RSD
+        double buyerAmount = dto.getAmount();
+        double sellerAmount = dto.getAmount();
 
-        // Ako buyer ili seller nisu u odgovarajućoj valuti
-        boolean buyerIsBank = buyer.getOwnerID() == 5;
-        boolean sellerIsBank = seller.getOwnerID() == 5;
-
-        if (!buyerIsBank && !"USD".equalsIgnoreCase(buyer.getCurrencyType().name())) {
-            // Buyer nije banka i nema USD nalog -> mora imati USD!
-            throw new IllegalStateException("Buyer nema USD nalog, a nije banka!");
-        }
-
-        if (!sellerIsBank && !"USD".equalsIgnoreCase(seller.getCurrencyType().name())) {
-            // Seller nije banka i nema USD nalog -> mora imati USD!
-            throw new IllegalStateException("Seller nema USD nalog, a nije banka!");
-        }
-
-        // Adjust iznose
-        double buyerAmount = dto.getAmount(); // buyer uvek plaća u USD
-        double sellerAmount = dto.getAmount(); // seller prima u USD osim ako je banka
-
-        if (sellerIsBank) {
-            sellerAmount = dto.getAmount() * exchangeRate;
-            System.out.println("[PATCH] Seller je banka, amount se konvertuje u RSD: " + sellerAmount);
-        }
-
-        if (buyerIsBank) {
-            buyerAmount = dto.getAmount() * exchangeRate;
-            System.out.println("[PATCH] Buyer je banka, amount se konvertuje u RSD: " + buyerAmount);
-        }
-
-        // Proveri stanje
         System.out.println("Buyer current balance: " + buyer.getBalance());
         System.out.println("Buyer required amount: " + buyerAmount);
         if (buyer.getBalance() < buyerAmount) {
@@ -196,6 +170,9 @@ public class OrderService {
         transaction.setToAccountId(seller);
         transaction.setTransfer(transfer);
         transaction.setBankOnly(false);
+        transaction.setDate(LocalDate.now());
+        transaction.setTime(LocalTime.now());
+
 
         transactionRepository.save(transaction);
 
