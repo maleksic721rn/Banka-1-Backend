@@ -19,3 +19,9 @@ type MonthlyProfitResponse struct {
 	Fees          float64 `json:"fees"`
 	Total         float64 `json:"total"`
 }
+
+type TotalProfitResponse struct {
+	ActuaryProfit float64 `json:"actuary_profit"`
+	Fees          float64 `json:"fees"`
+	Total         float64 `json:"total"`
+}
