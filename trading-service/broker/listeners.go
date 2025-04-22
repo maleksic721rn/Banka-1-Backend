@@ -2,10 +2,10 @@ package broker
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"time"
-	"errors"
 
 	"banka1.com/db"
 	"banka1.com/dto"
@@ -247,10 +247,10 @@ func assignOwnership(uid string) error {
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				portfolio = types.Portfolio{
-					UserID:        contract.BuyerID,
-					SecurityID:    contract.SecurityID,
-					Quantity:      0,
-					PublicCount:   0,
+					UserID:      contract.BuyerID,
+					SecurityID:  contract.SecurityID,
+					Quantity:    0,
+					PublicCount: 0,
 				}
 				if err := tx.Create(&portfolio).Error; err != nil {
 					return fmt.Errorf("Greška prilikom kreiranja portfolija kupca: %w", err)

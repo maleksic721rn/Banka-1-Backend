@@ -1,6 +1,7 @@
 package main
 
 import (
+	"banka1.com/cron"
 	"banka1.com/oauth"
 	"banka1.com/routes"
 	"banka1.com/services"
@@ -11,8 +12,6 @@ import (
 	"fmt"
 	"os"
 	"time"
-
-	"banka1.com/cron"
 
 	"banka1.com/middlewares"
 
@@ -27,8 +26,8 @@ import (
 	"log"
 )
 
-//	@title	Trading Service
-//	@version	1.0
+//	@title			Trading Service
+//	@version		1.0
 //	@description	Trading Service API
 
 // @securityDefinitions.apikey	BearerAuth

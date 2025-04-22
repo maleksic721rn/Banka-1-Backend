@@ -8,5 +8,13 @@ public enum CurrencyType {
     GBP,
     JPY,
     CAD,
-    AUD
+    AUD;
+
+    public static CurrencyType fromString(String code) {
+        try {
+            return CurrencyType.valueOf(code.toUpperCase());
+        } catch (IllegalArgumentException | NullPointerException e) {
+            throw new RuntimeException("Unsupported currency: " + code);
+        }
+    }
 }
