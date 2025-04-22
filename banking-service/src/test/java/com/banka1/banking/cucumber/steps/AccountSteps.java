@@ -55,11 +55,9 @@ public class AccountSteps {
     @Given("employee is logged into the account portal")
     public void employeeIsLoggedIntoAccountPortal() {
         try {
-            // Use the test support module to generate a token
             token = JwtTestUtils.generateAdminToken();
         
             assertNotNull(token, "Token should be generated during employee login");
-            System.out.println("Employee authenticated with token length: " + token.length());
         } catch (Exception e) {
             fail("Login failed: " + e.getMessage());
         }

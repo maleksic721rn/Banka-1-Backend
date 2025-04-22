@@ -80,7 +80,7 @@ public class LoanRequestSteps {
 
     @And("customer fills out the loan request form")
     public void customerFillsOutLoanRequestForm() {
-        loanRequestData.put("accountId", 10);
+        loanRequestData.put("accountId", 107);
         loanRequestData.put("currencyType", "RSD");
         loanRequestData.put("employmentDuration", 12);
         loanRequestData.put("employmentStatus", "PERMANENT");
@@ -95,7 +95,7 @@ public class LoanRequestSteps {
 
     @And("customer fills out the loan request form with missing required information")
     public void customerFillsOutLoanRequestFormWithMissingInfo() {
-        loanRequestData.put("accountId", 10);
+        loanRequestData.put("accountId", 107);
         loanRequestData.put("currencyType", "RSD");
         loanRequestData.put("employmentDuration", 12);
         loanRequestData.put("employmentStatus", "PERMANENT");

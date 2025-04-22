@@ -81,7 +81,7 @@ public class ReceiverController {
             @Parameter(description = "ID korisnika", required = true, example = "2")
             @PathVariable Long customerId) {
         if (!receiverService.accountExists(customerId)) {
-            return ResponseTemplate.create(ResponseEntity.status(HttpStatus.NOT_FOUND), false, null, "Nalog ne postoji.");
+            return ResponseTemplate.create(ResponseEntity.status(HttpStatus.OK), true, Map.of("receivers", new Receiver[]{}), null);
         }
         List<Receiver> receivers = receiverService.getReceiversByCustomerId(customerId);
         return ResponseTemplate.create(ResponseEntity.status(HttpStatus.OK), true, Map.of("receivers", receivers), null);
