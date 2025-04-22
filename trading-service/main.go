@@ -1,6 +1,7 @@
 package main
 
 import (
+	"banka1.com/cron"
 	"banka1.com/routes"
 	fiberSwagger "github.com/swaggo/fiber-swagger"
 
@@ -9,8 +10,6 @@ import (
 	"fmt"
 	"os"
 	"time"
-
-	"banka1.com/cron"
 
 	"banka1.com/middlewares"
 

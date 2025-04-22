@@ -1117,5 +1117,43 @@ public class TransferService {
             throw new RuntimeException("Error processing transfer", e);
         }
     }
+
+    @Transactional
+    public Transfer receiveForeignBankTransfer(String accountNumber, double amount, String description, String senderName, Currency currency) {
+        Account toAccount = accountRepository.findByAccountNumber(accountNumber)
+                .orElseThrow(() -> new RuntimeException("Destination account not found: " + accountNumber));
+
+        toAccount.setBalance(toAccount.getBalance() + amount);
+        accountRepository.save(toAccount);
+
+        Transfer transfer = new Transfer();
+        transfer.setFromAccountId(null);
+        transfer.setToAccountId(toAccount);
+        transfer.setAmount(amount);
+        transfer.setStatus(TransferStatus.COMPLETED);
+        transfer.setType(TransferType.FOREIGN_BANK);
+        transfer.setPaymentDescription(description);
+        transfer.setReceiver(senderName);
+        transfer.setFromCurrency(currency);
+        transfer.setToCurrency(currency);
+        transfer.setCreatedAt(System.currentTimeMillis());
+
+        transfer = transferRepository.save(transfer);
+
+        Transaction transaction = new Transaction();
+        transaction.setFromAccountId(null);
+        transaction.setToAccountId(toAccount);
+        transaction.setAmount(amount);
+        transaction.setCurrency(currency);
+        transaction.setFinalAmount(amount);
+        transaction.setFee(0.0);
+        transaction.setTimestamp(System.currentTimeMillis());
+        transaction.setDescription("Received transfer from foreign bank");
+        transaction.setTransfer(transfer);
+        transactionRepository.save(transaction);
+
+        return transfer;
+    }
+
 }
 

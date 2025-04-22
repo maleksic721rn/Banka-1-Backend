@@ -133,4 +133,9 @@ public class EventService {
         return eventDeliveryRepository.findByEvent(event);
     }
 
+    public Event findEventByIdempotenceKey(IdempotenceKey idempotenceKey) {
+        return eventRepository.findByIdempotenceKey(idempotenceKey)
+                .orElseThrow(() -> new RuntimeException("Event not found"));
+    }
+
 }
