@@ -91,7 +91,7 @@ presubmits:
               # Promeniti ovu komandu da pokreće one servise koji vam trebaju za vaše
               # testove. Moguće je više puta pokrenuti "docker compose up" za različite
               # Docker Compose servise.
-              docker compose up -d banking-db message-broker user-service
+              docker compose up -d user-db
 
               # trap komanda obezbeđuje da se "collectJUnitCoverage"
               # funkcija izvrši pre samog izlaska iz ove skripte, nezavisno
