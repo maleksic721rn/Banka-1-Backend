@@ -6,6 +6,7 @@ import com.banka1.banking.dto.MoneyTransferDTO;
 import com.banka1.banking.dto.NotificationDTO;
 import com.banka1.banking.models.*;
 import com.banka1.banking.models.Currency;
+import com.banka1.banking.models.helper.AccountStatus;
 import com.banka1.banking.models.helper.CurrencyType;
 import com.banka1.banking.models.helper.TransferStatus;
 import com.banka1.banking.models.helper.TransferType;
@@ -20,6 +21,12 @@ import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.*;
 
 @Service
@@ -439,6 +446,9 @@ public class TransferService {
         transaction.setFinalAmount(amount - fee);
         transaction.setFee(fee);
         transaction.setTimestamp(System.currentTimeMillis());
+        LocalDateTime now = LocalDateTime.now();
+        transaction.setDate(now.toLocalDate());
+        transaction.setTime(now.toLocalTime());
         transaction.setDescription(description);
         transaction.setTransfer(transfer);
         return transaction;
@@ -607,6 +617,9 @@ public class TransferService {
                 debitTransaction.setFinalAmount(transfer.getAmount());
             }
             debitTransaction.setTimestamp(Instant.now().toEpochMilli());
+            LocalDateTime now = LocalDateTime.now();
+            debitTransaction.setDate(now.toLocalDate());
+            debitTransaction.setTime(now.toLocalTime());
             debitTransaction.setDescription("Debit transaction for transfer " + transfer.getId());
             debitTransaction.setTransfer(transfer);
             transactionRepository.save(debitTransaction);
@@ -648,7 +661,6 @@ public class TransferService {
     }
 
     public boolean validateMoneyTransfer(MoneyTransferDTO transferDTO){
-
         Optional<Account> fromAccountOtp = accountRepository.findByAccountNumber(transferDTO.getFromAccountNumber());
         Optional<Account> toAccountOtp = accountRepository.findByAccountNumber(transferDTO.getRecipientAccount());
 
@@ -660,6 +672,15 @@ public class TransferService {
         Account toAccount = toAccountOtp.get();
 
         if(transferDTO.getAmount() <= 0){
+            return false;
+        }
+
+        if (fromAccount.getStatus() != AccountStatus.ACTIVE ||
+                toAccount.getStatus() != AccountStatus.ACTIVE) {
+            return false;
+        }
+
+        if (!fromAccount.getCurrencyType().equals(toAccount.getCurrencyType())) {
             return false;
         }
 

@@ -6,6 +6,7 @@ import com.banka1.banking.dto.MoneyTransferDTO;
 import com.banka1.banking.dto.NotificationDTO;
 import com.banka1.banking.models.*;
 import com.banka1.banking.models.Currency;
+import com.banka1.banking.models.helper.AccountStatus;
 import com.banka1.banking.models.helper.CurrencyType;
 import com.banka1.banking.models.helper.TransferStatus;
 import com.banka1.banking.models.helper.TransferType;
@@ -403,6 +404,9 @@ public class TransferServiceTest {
         dto.setRecipientAccount("987654321");
         dto.setAmount(2e4);
 
+        toAccount.setStatus(AccountStatus.ACTIVE);
+        fromAccountUSD.setStatus(AccountStatus.ACTIVE);
+
         when(accountRepository.findByAccountNumber("123456789")).thenReturn(Optional.of(fromAccountUSD));
         when(accountRepository.findByAccountNumber("987654321")).thenReturn(Optional.of(toAccount));
 
@@ -434,6 +438,8 @@ public class TransferServiceTest {
     void testValidateInternalTransfer_Success() {
         // Set same owner for both accounts for internal transfer
         toAccount.setOwnerID(100L);
+        toAccount.setStatus(AccountStatus.ACTIVE);
+        fromAccountUSD.setStatus(AccountStatus.ACTIVE);
 
         InternalTransferDTO dto = new InternalTransferDTO();
         dto.setFromAccountId(1L);
