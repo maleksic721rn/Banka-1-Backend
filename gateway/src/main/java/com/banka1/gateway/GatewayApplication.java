@@ -29,11 +29,11 @@ public class GatewayApplication {
 
 
     public static void main(String[] args) {
-        String ignoreSSL = System.getenv("IGNORE_SSL_CERTS");
-        if (ignoreSSL == null || "true".equalsIgnoreCase(ignoreSSL)) {
-            log.info("Ignoring SSL certificates based on environment configuration");
+//        String ignoreSSL = System.getenv("IGNORE_SSL_CERTS");
+//        if (ignoreSSL == null || "true".equalsIgnoreCase(ignoreSSL)) {
+//            log.info("Ignoring SSL certificates based on environment configuration");
             ignoreCertificates();
-        }
+//        }
         SpringApplication.run(GatewayApplication.class, args);
     }
 
