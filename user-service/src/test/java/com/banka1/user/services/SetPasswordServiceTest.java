@@ -14,6 +14,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.crypto.factory.PasswordEncoderFactories;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Duration;
@@ -34,6 +36,11 @@ class SetPasswordServiceTest {
 
     @Mock
     private EmployeeRepository employeeRepository;
+
+
+    @Mock
+    private PasswordEncoder pe;
+
 
     @InjectMocks
     private SetPasswordService setPasswordService;
@@ -94,6 +101,7 @@ class SetPasswordServiceTest {
         Customer customer = new Customer();
         when(setPasswordRepository.findByToken(token)).thenReturn(Optional.of(setPassword));
         when(customerRepository.findById(userId)).thenReturn(Optional.of(customer));
+        when(pe.encode(anyString())).thenReturn("$2a$12..........");
         SetPasswordRequest request = new SetPasswordRequest();
         request.setToken(token);
         request.setPassword("newPassWord");
@@ -101,7 +109,6 @@ class SetPasswordServiceTest {
         setPasswordService.setPassword(request);
 
         assertNotNull(customer.getPassword());
-        assertNotNull(customer.getSaltPassword());
         assertTrue(setPassword.getUsed());
         verify(customerRepository, times(1)).save(customer);
         verify(setPasswordRepository, times(1)).save(setPassword);
@@ -113,6 +120,8 @@ class SetPasswordServiceTest {
         Employee employee = new Employee();
         when(setPasswordRepository.findByToken(token)).thenReturn(Optional.of(setPassword));
         when(employeeRepository.findById(userId)).thenReturn(Optional.of(employee));
+        when(pe.encode(anyString())).thenReturn("$2a$12..........");
+
         SetPasswordRequest request = new SetPasswordRequest();
         request.setToken(token);
         request.setPassword("newPassWord");
@@ -120,7 +129,6 @@ class SetPasswordServiceTest {
         setPasswordService.setPassword(request);
 
         assertNotNull(employee.getPassword());
-        assertNotNull(employee.getSaltPassword());
         assertTrue(setPassword.getUsed());
         verify(employeeRepository, times(1)).save(employee);
         verify(setPasswordRepository, times(1)).save(setPassword);

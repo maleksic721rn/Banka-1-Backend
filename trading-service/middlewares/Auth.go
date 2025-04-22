@@ -2,51 +2,13 @@ package middlewares
 
 import (
 	"fmt"
+	"github.com/gofiber/fiber/v2/log"
 
 	"github.com/gofiber/fiber/v2"
 )
 
 func Auth(c *fiber.Ctx) error {
-	auth := c.Get("Authorization")
-	if auth == "" {
-		return c.Status(401).JSON(fiber.Map{
-			"error":   "Unauthorized - No token provided",
-			"success": false,
-		})
-	}
-
-	// remove Bearer from token
-	token := auth[7:]
-	if token == "" {
-		return c.Status(401).JSON(fiber.Map{
-			"error":   "Unauthorized - No token provided",
-			"success": false,
-		})
-	}
-
-	_, claims, err := readToken(token)
-	if err != nil {
-		fmt.Println(err)
-		return c.Status(401).JSON(fiber.Map{
-			"error":   "Unauthorized - Invalid token",
-			"success": false,
-		})
-	}
-
-	fmt.Println(claims)
-
-	fmt.Println("token: ", token)
-
-	c.Locals("token", token)
-
-	c.Locals("claims", claims)
-	c.Locals("user_id", claims["id"])
-	c.Locals("position", claims["position"])
-	c.Locals("department", claims["department"])
-	c.Locals("permissions", claims["permissions"])
-	c.Locals("is_admin", claims["isAdmin"])
-	c.Locals("is_employed", claims["isEmployed"])
-	return c.Next()
+	return JWTMiddleware(c)
 }
 
 func DepartmentCheck(requiredDept string) fiber.Handler {
@@ -66,6 +28,7 @@ func DepartmentCheck(requiredDept string) fiber.Handler {
 }
 
 func RequirePermission(requiredPermission string) fiber.Handler {
+	log.Infof("Checking for permission: %s", requiredPermission)
 	return func(c *fiber.Ctx) error {
 		permissions, ok := c.Locals("permissions").([]interface{})
 		if !ok {
@@ -74,13 +37,16 @@ func RequirePermission(requiredPermission string) fiber.Handler {
 				"error":   "Unauthorized: No permissions found",
 			})
 		}
+		log.Infof("Permissions found: %v", permissions)
 
 		for _, perm := range permissions {
+			log.Infof("Checking permission: %v", perm)
 			if strPerm, ok := perm.(string); ok && strPerm == requiredPermission {
+				log.Infof("Permission '%s' granted", requiredPermission)
 				return c.Next()
 			}
 		}
-
+		log.Infof("Permission '%s' denied", requiredPermission)
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"success": false,
 			"error":   fmt.Sprintf("Unauthorized: Missing permission '%s'", requiredPermission),

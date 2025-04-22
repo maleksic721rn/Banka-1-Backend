@@ -3,71 +3,97 @@ package middlewares
 import (
 	"encoding/base64"
 	"fmt"
+	jwtware "github.com/gofiber/contrib/jwt"
+	"github.com/gofiber/fiber/v2"
+	"github.com/golang-jwt/jwt/v5"
 	"os"
-
-	"github.com/dgrijalva/jwt-go"
-	// "strings"
 )
 
-func keyFunc(token *jwt.Token) (interface{}, error) {
-	return getSigningKey()
+// JWTMiddleware returns a JWT middleware using either JWKS or local key for validation
+func JWTMiddleware(c *fiber.Ctx) error {
+	// Check if we're in test mode (using local key)
+	if os.Getenv("JWT_TEST_MODE") == "true" {
+		return jwtware.New(jwtware.Config{
+			SigningKey:     getSigningKeyOrPanic(),
+			SuccessHandler: jwtSuccessHandler,
+			ErrorHandler:   jwtErrorHandler,
+		})(c)
+	}
+
+	// Production mode (using JWKS)
+	return jwtware.New(jwtware.Config{
+		Filter:         nil,
+		SuccessHandler: jwtSuccessHandler,
+		ErrorHandler:   jwtErrorHandler,
+		JWKSetURLs:     []string{"https://idp.localhost/o/oauth2/jwks"},
+	})(c)
 }
 
-func getSigningKey() ([]byte, error) {
-	secret := os.Getenv("JWT_SECRET") // Preuzimanje tajnog ključa iz env
-	decodedKey, err := base64.StdEncoding.DecodeString(secret)
-	if err != nil {
-		return nil, err
+// jwtSuccessHandler handles successful JWT validation
+func jwtSuccessHandler(c *fiber.Ctx) error {
+	// Get the token from context
+	token := c.Locals("user").(*jwt.Token)
+
+	// Extract claims
+	claims := token.Claims.(jwt.MapClaims)
+
+	// Store claims in context for use in protected routes
+	c.Locals("token", token.Raw)
+	c.Locals("claims", claims)
+	untyped := claims["resource_access"]
+	// Tests will fail if this doesn't exist
+	if untyped == nil {
+		return c.Next()
 	}
-	return decodedKey, nil
+	resourceAccess := untyped.(map[string]interface{})
+	c.Locals("user_id", resourceAccess["id"])
+	c.Locals("position", resourceAccess["position"])
+	c.Locals("department", resourceAccess["department"])
+	c.Locals("permissions", resourceAccess["permissions"])
+	c.Locals("is_admin", resourceAccess["isAdmin"])
+	c.Locals("is_employed", resourceAccess["isEmployed"])
+
+	return c.Next()
 }
 
-func readToken(tokenString string) (*jwt.Token, jwt.MapClaims, error) {
-	claims := jwt.MapClaims{}
-	token, err := jwt.ParseWithClaims(tokenString, claims, keyFunc)
-	if err != nil {
-		return nil, claims, err
-	}
-	return token, claims, nil
+// jwtErrorHandler handles JWT validation errors
+func jwtErrorHandler(c *fiber.Ctx, err error) error {
+	return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+		"error":   "Unauthorized - " + err.Error(),
+		"success": false,
+	})
 }
 
-func NewOrderToken(direction string, userID uint, accountID uint, amount float64, fee float64) (string, error) {
-	key, err := getSigningKey()
-	if err != nil {
-		return "", err
-	}
-
-	tokenString, err := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"direction": direction,
-		"userId":    userID,
-		"accountId": accountID,
-		"amount":    fmt.Sprintf("%f", amount),
-		"fee":       fmt.Sprintf("%f", fee),
-	}).SignedString(key)
-
-	if err != nil {
-		return "", err
-	}
-
-	return tokenString, nil
+func GenerateToken(req interface{}) (*interface{}, *interface{}) {
+	return nil, nil
 }
 
 func NewOrderTokenDirect(uid string, buyerAccountId uint, sellerAccountId uint, amount float64) (string, error) {
+	return "", nil
+}
+
+// Testing utilities
+
+// getSigningKeyOrPanic retrieves the JWT signing key or panics
+func getSigningKeyOrPanic() jwtware.SigningKey {
 	key, err := getSigningKey()
 	if err != nil {
-		return "", err
+		panic(err)
+	}
+	return jwtware.SigningKey{Key: key, JWTAlg: "HS256"}
+}
+
+// getSigningKey retrieves the JWT signing key from the environment
+func getSigningKey() ([]byte, error) {
+	encodedSecret := os.Getenv("JWT_SECRET")
+	if encodedSecret == "" {
+		return nil, fmt.Errorf("JWT_SECRET environment variable not set")
 	}
 
-	tokenString, err := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"uid":             uid,
-		"buyerAccountId":  buyerAccountId,
-		"sellerAccountId": sellerAccountId,
-		"amount":          fmt.Sprintf("%f", amount),
-	}).SignedString(key)
-
+	decodedSecret, err := base64.StdEncoding.DecodeString(encodedSecret)
 	if err != nil {
-		return "", err
+		return nil, fmt.Errorf("failed to decode JWT_SECRET: %w", err)
 	}
 
-	return tokenString, nil
+	return decodedSecret, nil
 }

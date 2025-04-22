@@ -668,11 +668,11 @@ func InitOTCTradeRoutes(app *fiber.App) {
 	otcController := NewOTCTradeController()
 	otc := app.Group("/otctrade", middlewares.Auth)
 
-	otc.Post("/offer", middlewares.RequirePermission("user.customer.otc_trade"), otcController.CreateOTCTrade)
-	otc.Put("/offer/:id/counter", middlewares.RequirePermission("user.customer.otc_trade"), otcController.CounterOfferOTCTrade)
-	otc.Put("/offer/:id/accept", middlewares.RequirePermission("user.customer.otc_trade"), otcController.AcceptOTCTrade)
-	otc.Put("/offer/:id/reject", middlewares.RequirePermission("user.customer.otc_trade"), otcController.RejectOTCTrade)
-	otc.Put("/option/:id/execute", middlewares.RequirePermission("user.customer.otc_trade"), otcController.ExecuteOptionContract)
+	otc.Post("/offer", middlewares.RequirePermission("OTC_TRADING"), otcController.CreateOTCTrade)
+	otc.Put("/offer/:id/counter", middlewares.RequirePermission("OTC_TRADING"), otcController.CounterOfferOTCTrade)
+	otc.Put("/offer/:id/accept", middlewares.RequirePermission("OTC_TRADING"), otcController.AcceptOTCTrade)
+	otc.Put("/offer/:id/reject", middlewares.RequirePermission("OTC_TRADING"), otcController.RejectOTCTrade)
+	otc.Put("/option/:id/execute", middlewares.RequirePermission("OTC_TRADING"), otcController.ExecuteOptionContract)
 	otc.Get("/offer/active", otcController.GetActiveOffers)
 	otc.Get("/option/contracts", otcController.GetUserOptionContracts)
 }

@@ -9,8 +9,10 @@ import (
 	"banka1.com/listings/securities"
 	"banka1.com/listings/stocks"
 	"banka1.com/listings/tax"
+	"banka1.com/services"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -257,8 +259,23 @@ func employeeToActuary(employee Employee) types.Actuary {
 func GetActuaries() (*APIResponse, error) {
 	basePath := os.Getenv("USER_SERVICE")
 	url := basePath + "/api/users/employees/actuaries"
+	log.Infof("Fetching actuaries from %s\n", url)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		log.Infof("Failed to create GET reqeust for  %s: %v\n", url, err)
+		return nil, err
+	}
+	authHeader, err := services.GetOAuthService().GetAuthorizationHeader()
 
-	resp, err := http.Get(url)
+	if err != nil {
+		log.Infof("Failed to get authorization header: %v\n", err)
+		return nil, err
+	}
+
+	req.Header.Add("Authorization", authHeader)
+	client := &http.Client{}
+	resp, err := client.Do(req)
+
 	if err != nil {
 		log.Infof("Failed to fetch %s: %v\n", url, err)
 		return nil, err
@@ -271,8 +288,9 @@ func GetActuaries() (*APIResponse, error) {
 	}(resp.Body)
 
 	if resp.StatusCode != 200 {
-		log.Infof("Error fetching %s: HTTP %d\n", url, resp.StatusCode)
-		return nil, err
+		e := fmt.Sprintf("Error fetching %s: HTTP %d\n", url, resp.StatusCode)
+		log.Infof(e)
+		return nil, errors.New(e)
 	}
 
 	var apiResponse *APIResponse

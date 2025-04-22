@@ -1,5 +1,6 @@
 package com.banka1.banking.cucumber.steps;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -7,6 +8,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
+
+import com.banka1.testing.jwt.JwtTestUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.HttpEntity;
@@ -52,18 +55,13 @@ public class LoanRequestSteps {
     @SuppressWarnings({ "unchecked", "null" })
     @Given("customer is logged into the banking portal")
     public void customerIsLoggedIntoBankingPortal() {
-        // Simulating a customer login and getting a token
-        Map<String, String> loginData = new HashMap<>();
-        loginData.put("email", "jpavlovic6521rn@raf.rs");
-        loginData.put("password", "Jov@njovan1");
-
         try {
-            ResponseEntity<Map> response = restTemplate.postForEntity(
-                    "http://localhost:8081/api/auth/login", loginData, Map.class);
+            // Use the test support module to generate a token
+            token = JwtTestUtils.generateCustomerToken("marko.markovic@banka.com", 101L, List.of("READ_CUSTOMER"));
 
-            token = (String) ((Map<String, Object>) response.getBody().get("data")).get("token");
-            assertNotNull(token, "Token should be generated during login");
-        } catch (RestClientException e) {
+            assertNotNull(token, "Token should be generated during employee login");
+            System.out.println("Employee authenticated with token length: " + token.length());
+        } catch (Exception e) {
             fail("Login failed: " + e.getMessage());
         }
     }
@@ -82,7 +80,7 @@ public class LoanRequestSteps {
 
     @And("customer fills out the loan request form")
     public void customerFillsOutLoanRequestForm() {
-        loanRequestData.put("accountId", 100);
+        loanRequestData.put("accountId", 107);
         loanRequestData.put("currencyType", "RSD");
         loanRequestData.put("employmentDuration", 12);
         loanRequestData.put("employmentStatus", "PERMANENT");
@@ -97,7 +95,7 @@ public class LoanRequestSteps {
 
     @And("customer fills out the loan request form with missing required information")
     public void customerFillsOutLoanRequestFormWithMissingInfo() {
-        loanRequestData.put("accountId", 100);
+        loanRequestData.put("accountId", 107);
         loanRequestData.put("currencyType", "RSD");
         loanRequestData.put("employmentDuration", 12);
         loanRequestData.put("employmentStatus", "PERMANENT");
