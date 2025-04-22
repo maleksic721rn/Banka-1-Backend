@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"fmt"
 	"github.com/go-co-op/gocron"
 	"log"
 	"time"
@@ -72,54 +71,39 @@ AND NOT is_paid;`).Rows()
 //	@Router			/tax/run [post]
 func (tc *TaxController) RunTax(c *fiber.Ctx) error {
 	now := time.Now()
-	startOfMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
-	endOfMonth := startOfMonth.AddDate(0, 1, 0)
+	yearMonth := now.Format("2006-01")
 
-	rows, err := db.DB.Raw(`
-		SELECT t.id, t.user_id, t.account_id, t.buy_price, t.sell_price, t.currency
-		FROM transactions t
-		WHERE t.sell_price > t.buy_price
-		  AND t.created_at >= ?
-		  AND t.created_at < ?
-		  AND t.tax_paid = FALSE
-	`, startOfMonth, endOfMonth).Rows()
+	var transactions []types.Transaction
+	err := db.DB.Raw(`
+		SELECT id, buyer_id, seller_id, security_id, quantity, price_per_unit, total_price, created_at
+		FROM transactions
+		WHERE total_price > 0
+		  AND substr(created_at, 1, 7) = ?
+		  AND tax_paid = FALSE
+	`, yearMonth).Scan(&transactions).Error
 
 	if err != nil {
+		log.Printf("Error fetching transactions: %v", err)
 		return c.Status(500).JSON(types.Response{
 			Success: false,
 			Error:   "Error fetching transactions: " + err.Error(),
 		})
 	}
-	defer rows.Close()
 
-	var failedTransactions []int64
-	for rows.Next() {
-		var transaction struct {
-			ID        int64
-			UserID    int64
-			AccountID int64
-			BuyPrice  float64
-			SellPrice float64
-			Currency  string
-		}
-		if err := rows.Scan(&transaction.ID, &transaction.UserID, &transaction.AccountID, &transaction.BuyPrice, &transaction.SellPrice, &transaction.Currency); err != nil {
-			return c.Status(500).JSON(types.Response{
-				Success: false,
-				Error:   "Error reading transaction data: " + err.Error(),
-			})
-		}
+	for _, transaction := range transactions {
+		// Calculate profit and tax
+		//profit := transaction.TotalPrice
+		//tax := profit * 0.15
 
-		profit := transaction.SellPrice - transaction.BuyPrice
-		tax := profit * 0.15
+		// Deduct tax from the buyer's account
+		//err = db.DB.Exec(`
+		//	UPDATE accounts
+		//	SET balance = balance - ?
+		//	WHERE id = ?
+		//`, tax, transaction.BuyerID).Error
 
-		err = db.DB.Exec(`
-			UPDATE accounts
-			SET balance = balance - ?
-			WHERE id = ?
-			  AND balance >= ?
-		`, tax, transaction.AccountID, tax).Error
 		if err != nil {
-			failedTransactions = append(failedTransactions, transaction.ID)
+			log.Printf("Error deducting tax for transaction %d: %v", transaction.ID, err)
 			continue
 		}
 
@@ -128,23 +112,18 @@ func (tc *TaxController) RunTax(c *fiber.Ctx) error {
 			SET tax_paid = TRUE
 			WHERE id = ?
 		`, transaction.ID).Error
+
 		if err != nil {
-			failedTransactions = append(failedTransactions, transaction.ID)
+			log.Printf("Error updating transaction %d: %v", transaction.ID, err)
 			continue
 		}
-	}
-
-	if len(failedTransactions) > 0 {
-		return c.Status(207).JSON(types.Response{
-			Success: false,
-			Error:   "Some transactions failed to process: " + fmt.Sprint(failedTransactions),
-		})
 	}
 
 	return c.Status(202).JSON(types.Response{
 		Success: true,
 		Data:    "Tax calculation and deduction completed successfully.",
 	})
+
 }
 
 // GetAggregatedTaxForUser godoc
