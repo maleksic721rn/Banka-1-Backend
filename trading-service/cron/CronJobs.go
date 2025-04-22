@@ -12,6 +12,7 @@ import (
 	"banka1.com/services"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -287,8 +288,9 @@ func GetActuaries() (*APIResponse, error) {
 	}(resp.Body)
 
 	if resp.StatusCode != 200 {
-		log.Infof("Error fetching %s: HTTP %d\n", url, resp.StatusCode)
-		return nil, err
+		e := fmt.Sprintf("Error fetching %s: HTTP %d\n", url, resp.StatusCode)
+		log.Infof(e)
+		return nil, errors.New(e)
 	}
 
 	var apiResponse *APIResponse
