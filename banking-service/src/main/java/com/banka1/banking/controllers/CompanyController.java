@@ -312,7 +312,7 @@ public class CompanyController {
             """))
             )
     })
-    // FIXME: why is this not protected???
+    @IsEmployed
     public ResponseEntity<?> getAccountsByCompanyID(@PathVariable("company_id") Long companyId) {
         try {
             List<Account> accounts = companyService.findAllAccountsByCompanyId(companyId);

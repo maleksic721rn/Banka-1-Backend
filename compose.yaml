@@ -43,6 +43,51 @@ services:
       retries: 5
     networks:
       - broker-net
+  gateway:
+    image: 'harbor.k8s.elab.rs/banka-1/gateway:latest'
+    ports:
+      - '8080:8080'
+    networks:
+      - proxy-net
+    environment:
+      # Override service URIs
+      # User Service
+      - SPRING_CLOUD_GATEWAY_MVC_ROUTES_0_URI=http://host.docker.internal:8081
+      - SPRING_CLOUD_GATEWAY_MVC_ROUTES_0_PREDICATES_0=Path=/api/user/**
+      # Banking Service
+      - SPRING_CLOUD_GATEWAY_MVC_ROUTES_1_URI=http://host.docker.internal:8082
+      - SPRING_CLOUD_GATEWAY_MVC_ROUTES_1_PREDICATES_0=Path=/api/banking/**
+      # Trading Service
+      - SPRING_CLOUD_GATEWAY_MVC_ROUTES_2_URI=http://host.docker.internal:3000
+      - SPRING_CLOUD_GATEWAY_MVC_ROUTES_1_PREDICATES_0=Path=/api/trading/**
+
+      # Support Service
+      - SPRING_CLOUD_GATEWAY_MVC_ROUTES_3_URI=http://host.docker.internal:8000
+      - SPRING_CLOUD_GATEWAY_MVC_ROUTES_1_PREDICATES_0=Path=/api/support/**
+
+      # OAuth2 settings (unchanged but useful for copy pasta into k8s)
+      - SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_IDP_ISSUER-URI=https://idp.localhost
+      - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_IDP_CLIENT-ID=gateway-client
+      - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_IDP_CLIENT-SECRET=secrets
+      - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_IDP_REDIRECT-URI=https://localhost/api/login/oauth2/code/idp
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+      - "idp.localhost:host-gateway" # make idp.localhost accessible
+  idp:
+    image : 'harbor.k8s.elab.rs/banka-1/idp:latest'
+    ports:
+      - "9000:9000"
+    networks:
+      - proxy-net
+      - user-net
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://user-db:5432/user_service_db
+      - SPRING_DATASOURCE_DRIVER_CLASS_NAME=org.postgresql.Driver
+      - SPRING_DATASOURCE_USERNAME=user_service_user
+      - SPRING_DATASOURCE_PASSWORD=user_service_password
+      - LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_WEB=INFO
+      - LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_SECURITY=INFO
+
   notification-service:
     image: 'harbor.k8s.elab.rs/banka-1/notification-service:latest'
     ports:
@@ -163,7 +208,6 @@ services:
       - SPRING_DATASOURCE_PASSWORD=user_service_password
       - SPRING_H2_CONSOLE_ENABLED=false
       - SPRING_ACTIVEMQ_BROKER_URL=tcp://message-broker:61616?jms.prefetchPolicy.all=1&jms.redeliveryPolicy.maximumRedeliveries=0
-      - FRONTEND_URL=https://localhost
       - LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_WEB=INFO
       - LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_SECURITY=INFO
       #    If you want colored output, uncomment the following line:

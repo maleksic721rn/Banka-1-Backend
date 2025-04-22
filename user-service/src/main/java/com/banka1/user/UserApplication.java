@@ -1,6 +1,7 @@
 package com.banka1.user;
 import com.banka1.common.annotation.Bank1Application;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.SpringApplication;
 
 import java.security.SecureRandom;
@@ -12,10 +13,15 @@ import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 
 @Bank1Application
+@Slf4j
 public class UserApplication {
 
 	public static void main(String[] args) {
-		ignoreCertificates();
+		String ignoreSSL = System.getenv("IGNORE_SSL_CERTS");
+		if (ignoreSSL == null || "true".equalsIgnoreCase(ignoreSSL)) {
+			log.info("Ignoring SSL certificates based on environment configuration");
+			ignoreCertificates();
+		}
 		SpringApplication.run(UserApplication.class, args);
 	}
 
