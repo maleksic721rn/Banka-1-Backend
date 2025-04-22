@@ -7,6 +7,7 @@ import com.banka1.banking.models.Account;
 import com.banka1.banking.models.Currency;
 import com.banka1.banking.models.ExchangePair;
 import com.banka1.banking.models.Transfer;
+import com.banka1.banking.models.helper.AccountStatus;
 import com.banka1.banking.models.helper.CurrencyType;
 import com.banka1.banking.repository.AccountRepository;
 import com.banka1.banking.repository.CurrencyRepository;
@@ -96,6 +97,23 @@ public class ExchangeServiceTest {
 
     @Test
     void validateExchangeTransferValidCaseReturnsTrue() {
+        fromAccount = new Account();
+        fromAccount.setId(1L);
+        fromAccount.setOwnerID(10L);
+        fromAccount.setCurrencyType(CurrencyType.EUR);
+        fromAccount.setStatus(AccountStatus.ACTIVE);
+
+        toAccount = new Account();
+        toAccount.setId(2L);
+        toAccount.setOwnerID(10L);
+        toAccount.setCurrencyType(CurrencyType.USD);
+        toAccount.setStatus(AccountStatus.ACTIVE);
+
+        exchangeMoneyTransferDTO = new ExchangeMoneyTransferDTO();
+        exchangeMoneyTransferDTO.setAccountFrom(1L);
+        exchangeMoneyTransferDTO.setAccountTo(2L);
+        exchangeMoneyTransferDTO.setAmount(500.0);
+
         when(accountRepository.findById(1L)).thenReturn(Optional.of(fromAccount));
         when(accountRepository.findById(2L)).thenReturn(Optional.of(toAccount));
 
