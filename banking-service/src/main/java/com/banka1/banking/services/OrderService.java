@@ -119,21 +119,50 @@ public class OrderService {
         System.out.println("Buyer Account found: " + buyer.getAccountNumber());
         System.out.println("Seller Account found: " + seller.getAccountNumber());
 
-        if (!buyer.getCurrencyType().equals(seller.getCurrencyType())) {
-            System.out.println("Greska: Currency mismatch!");
-            throw new IllegalArgumentException("Currency mismatch");
+        double exchangeRate = 110.0; // 1 USD = 110 RSD
+
+        // Ako buyer ili seller nisu u odgovarajućoj valuti
+        boolean buyerIsBank = buyer.getOwnerID() == 5;
+        boolean sellerIsBank = seller.getOwnerID() == 5;
+
+        if (!buyerIsBank && !"USD".equalsIgnoreCase(buyer.getCurrencyType().name())) {
+            // Buyer nije banka i nema USD nalog -> mora imati USD!
+            throw new IllegalStateException("Buyer nema USD nalog, a nije banka!");
         }
 
-        if (buyer.getBalance() < dto.getAmount()) {
-            System.out.println("Greska: Insufficient funds!");
+        if (!sellerIsBank && !"USD".equalsIgnoreCase(seller.getCurrencyType().name())) {
+            // Seller nije banka i nema USD nalog -> mora imati USD!
+            throw new IllegalStateException("Seller nema USD nalog, a nije banka!");
+        }
+
+        // Adjust iznose
+        double buyerAmount = dto.getAmount(); // buyer uvek plaća u USD
+        double sellerAmount = dto.getAmount(); // seller prima u USD osim ako je banka
+
+        if (sellerIsBank) {
+            sellerAmount = dto.getAmount() * exchangeRate;
+            System.out.println("[PATCH] Seller je banka, amount se konvertuje u RSD: " + sellerAmount);
+        }
+
+        if (buyerIsBank) {
+            buyerAmount = dto.getAmount() * exchangeRate;
+            System.out.println("[PATCH] Buyer je banka, amount se konvertuje u RSD: " + buyerAmount);
+        }
+
+        // Proveri stanje
+        System.out.println("Buyer current balance: " + buyer.getBalance());
+        System.out.println("Buyer required amount: " + buyerAmount);
+        if (buyer.getBalance() < buyerAmount) {
+            System.out.println("Greska: Insufficient funds kod buyer-a!");
             throw new IllegalArgumentException("Insufficient funds");
         }
 
         System.out.println("Pre transfera - Buyer balance: " + buyer.getBalance());
         System.out.println("Pre transfera - Seller balance: " + seller.getBalance());
 
-        buyer.setBalance(buyer.getBalance() - dto.getAmount());
-        seller.setBalance(seller.getBalance() + dto.getAmount());
+        // Skidanje i dodavanje
+        buyer.setBalance(buyer.getBalance() - buyerAmount);
+        seller.setBalance(seller.getBalance() + sellerAmount);
 
         accountRepository.save(buyer);
         accountRepository.save(seller);
@@ -141,6 +170,7 @@ public class OrderService {
         System.out.println("Posle transfera - Buyer balance: " + buyer.getBalance());
         System.out.println("Posle transfera - Seller balance: " + seller.getBalance());
 
+        // Kreiraj transfer
         MoneyTransferDTO moneyTransferDTO = new MoneyTransferDTO();
         moneyTransferDTO.setFromAccountNumber(buyer.getAccountNumber());
         moneyTransferDTO.setRecipientAccount(seller.getAccountNumber());
@@ -151,18 +181,15 @@ public class OrderService {
         moneyTransferDTO.setPayementReference("Auto");
         moneyTransferDTO.setPayementDescription("Transfer initiated via Orders");
 
-        System.out.println("Kreiram transfer entity...");
         Transfer transfer = transferService.createMoneyTransferEntity(buyer, seller, moneyTransferDTO);
         transfer.setStatus(TransferStatus.COMPLETED);
 
-        System.out.println("Transfer kreiran. ID: " + transfer.getId());
-
-        System.out.println("Kreiram transakciju...");
+        // Kreiraj transakciju
         Transaction transaction = new Transaction();
         transaction.setAmount(dto.getAmount());
         transaction.setFinalAmount(dto.getAmount());
         transaction.setFee(0.0);
-        transaction.setCurrency(currencyRepository.getByCode(buyer.getCurrencyType()));
+        transaction.setCurrency(currencyRepository.getByCode(buyer.getCurrencyType())); // Transakcija je u USD
         transaction.setDescription("Order Execution Transfer");
         transaction.setTimestamp(Instant.now().toEpochMilli());
         transaction.setFromAccountId(buyer);
@@ -172,9 +199,7 @@ public class OrderService {
 
         transactionRepository.save(transaction);
 
-        System.out.println("Transakcija sacuvana! ID transakcije: " + transaction.getId());
         System.out.println("=== ZAVRŠEN processOrderTransaction ===");
     }
-
 
 }
