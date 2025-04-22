@@ -186,58 +186,63 @@ public class AccountService {
     //realno metode mogu da se spoje i ne treba odvojen dto al ajde kao da ni ne dam opciju useru da slucajno sam sebi menja status
 
     public List<TransactionResponseDTO> getTransactionsForAccount(Long accountId) {
-        Account account = accountRepository.findById(accountId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Račun sa ID-jem " + accountId + " nije pronađen"));
+        try {
+            Account account = accountRepository.findById(accountId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Račun sa ID-jem " + accountId + " nije pronađen"));
 
-        List<Transaction> transactionsFrom = transactionRepository.findByFromAccountId(account);
-        List<Transaction> transactionsTo = transactionRepository.findByToAccountId(account);
+            List<Transaction> transactionsFrom = transactionRepository.findByFromAccountId(account);
+            List<Transaction> transactionsTo = transactionRepository.findByToAccountId(account);
 
-        List<Transaction> allTransactions = new ArrayList<>();
-        allTransactions.addAll(transactionsFrom);
-        allTransactions.addAll(transactionsTo);
+            List<Transaction> allTransactions = new ArrayList<>();
+            allTransactions.addAll(transactionsFrom);
+            allTransactions.addAll(transactionsTo);
 
-        // Postavi dummy account gde fali
-        for (Transaction transaction : allTransactions) {
-            if (transaction.getToAccountId() == null) {
-                Account dummyTo = new Account();
-                dummyTo.setId(0L);
-                dummyTo.setAccountNumber(transaction.getTransfer() != null ? transaction.getTransfer().getNote() : "foreign");
-                transaction.setToAccountId(dummyTo);
+            // Postavi dummy account gde fali
+            for (Transaction transaction : allTransactions) {
+                if (transaction.getToAccountId() == null) {
+                    Account dummyTo = new Account();
+                    dummyTo.setId(0L);
+                    dummyTo.setAccountNumber(transaction.getTransfer() != null ? transaction.getTransfer().getNote() : "foreign");
+                    transaction.setToAccountId(dummyTo);
+                }
+
+                if (transaction.getFromAccountId() == null) {
+                    Account dummyFrom = new Account();
+                    dummyFrom.setId(0L);
+                    dummyFrom.setAccountNumber("foreign");
+                    transaction.setFromAccountId(dummyFrom);
+                }
             }
 
-            if (transaction.getFromAccountId() == null) {
-                Account dummyFrom = new Account();
-                dummyFrom.setId(0L);
-                dummyFrom.setAccountNumber("foreign");
-                transaction.setFromAccountId(dummyFrom);
+            if (!Objects.equals(bankAccountUtils.getBankAccountForCurrency(CurrencyType.RSD).getOwnerID(), account.getOwnerID()))
+                allTransactions.removeIf(Transaction::getBankOnly);
+
+            List<TransactionResponseDTO> responseDTOs = new ArrayList<>();
+            for (Transaction transaction : allTransactions) {
+                TransactionResponseDTO dto = modelMapper.map(transaction, TransactionResponseDTO.class);
+
+                if (dto.getFromAccountId() != null && dto.getFromAccountId().getOwnerID() != null) {
+                    CustomerDTO sender = userServiceCustomer.getCustomerById(dto.getFromAccountId().getOwnerID());
+                    dto.setSenderName(sender.getFirstName() + " " + sender.getLastName());
+                } else {
+                    dto.setSenderName("Strana banka");
+                }
+
+                if (dto.getToAccountId() != null && dto.getToAccountId().getOwnerID() != null) {
+                    CustomerDTO receiver = userServiceCustomer.getCustomerById(dto.getToAccountId().getOwnerID());
+                    dto.setReceiverName(receiver.getFirstName() + " " + receiver.getLastName());
+                } else {
+                    dto.setReceiverName("Strana banka");
+                }
+
+                responseDTOs.add(dto);
             }
+
+            return responseDTOs;
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Greška prilikom dohvatanja transakcija: " + e.getMessage());
         }
-
-        if (!Objects.equals(bankAccountUtils.getBankAccountForCurrency(CurrencyType.RSD).getOwnerID(), account.getOwnerID()))
-            allTransactions.removeIf(Transaction::getBankOnly);
-
-        List<TransactionResponseDTO> responseDTOs = new ArrayList<>();
-        for (Transaction transaction : allTransactions) {
-            TransactionResponseDTO dto = modelMapper.map(transaction, TransactionResponseDTO.class);
-
-            if (dto.getFromAccountId() != null && dto.getFromAccountId().getOwnerID() != null) {
-                CustomerDTO sender = userServiceCustomer.getCustomerById(dto.getFromAccountId().getOwnerID());
-                dto.setSenderName(sender.getFirstName() + " " + sender.getLastName());
-            } else {
-                dto.setSenderName("Strana banka");
-            }
-
-            if (dto.getToAccountId() != null && dto.getToAccountId().getOwnerID() != null) {
-                CustomerDTO receiver = userServiceCustomer.getCustomerById(dto.getToAccountId().getOwnerID());
-                dto.setReceiverName(receiver.getFirstName() + " " + receiver.getLastName());
-            } else {
-                dto.setReceiverName("Strana banka");
-            }
-
-            responseDTOs.add(dto);
-        }
-
-        return responseDTOs;
     }
 
 

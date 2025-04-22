@@ -49,7 +49,7 @@ public class Transaction {
 
     @Column(nullable = false)
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "HH:mm")
-    private LocalTime time;
+    private String time;
 
     @Column()
     private String description;

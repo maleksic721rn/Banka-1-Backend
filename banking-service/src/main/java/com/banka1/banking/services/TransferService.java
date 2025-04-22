@@ -453,7 +453,10 @@ public class TransferService {
         transaction.setTimestamp(System.currentTimeMillis());
         LocalDateTime now = LocalDateTime.now();
         transaction.setDate(now.toLocalDate());
-        transaction.setTime(now.toLocalTime());
+
+        String time = now.toLocalTime().toString();
+        time = time.substring(0, 5);
+        transaction.setTime(time);
         transaction.setDescription(description);
         transaction.setTransfer(transfer);
         return transaction;
@@ -675,7 +678,10 @@ public class TransferService {
             debitTransaction.setTimestamp(Instant.now().toEpochMilli());
             LocalDateTime now = LocalDateTime.now();
             debitTransaction.setDate(now.toLocalDate());
-            debitTransaction.setTime(now.toLocalTime());
+
+            String time = now.toLocalTime().toString();
+            time = time.substring(0, 5);
+            debitTransaction.setTime(time);
             debitTransaction.setDescription("Debit transaction for transfer " + transfer.getId());
             debitTransaction.setTransfer(transfer);
             transactionRepository.save(debitTransaction);
