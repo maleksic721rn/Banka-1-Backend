@@ -2,8 +2,6 @@ package com.banka1.user;
 import com.banka1.common.annotation.Bank1Application;
 
 import org.springframework.boot.SpringApplication;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RestController;
 
 import java.security.SecureRandom;
 import java.security.cert.X509Certificate;
@@ -46,11 +44,3 @@ public class UserApplication {
 	}
 }
 
-@RestController
-class HelloWorldController {
-	@GetMapping("/hello")
-	public String hello() {
-		return "<h1>Hello, World!</h1>";
-	}
-
-}
