@@ -2,6 +2,9 @@ package com.banka1.idp.user;
 
 import com.banka1.common.model.Permission;
 
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 
@@ -30,6 +33,7 @@ import java.util.List;
 @Getter
 @Setter
 @ToString(exclude = {"password"})
+@JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY)
 public class User implements UserDetails, CredentialsContainer {
 
     @Id private Long id;
@@ -66,6 +70,8 @@ public class User implements UserDetails, CredentialsContainer {
     @CollectionTable(name = "user_permissions", joinColumns = @JoinColumn(name = "user_id"))
     @Column(name = "permission")
     @Enumerated(EnumType.STRING)
+    @JsonSerialize(as = ArrayList.class)
+    @JsonDeserialize(as = ArrayList.class)
     private List<Permission> permissions;
 
     @Column private String position;

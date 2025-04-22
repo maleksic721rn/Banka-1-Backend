@@ -1,6 +1,7 @@
 package com.banka1.idp.config;
 
 import com.banka1.idp.user.User;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
@@ -10,21 +11,26 @@ import com.nimbusds.jose.proc.SecurityContext;
 import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.*;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.core.authority.AuthorityUtils;
+import org.springframework.security.jackson2.SecurityJackson2Modules;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 import org.springframework.security.oauth2.core.oidc.OidcScopes;
 import org.springframework.security.oauth2.core.oidc.OidcUserInfo;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.server.authorization.JdbcOAuth2AuthorizationService;
+import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
 import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
-import org.springframework.security.oauth2.server.authorization.client.InMemoryRegisteredClientRepository;
+import org.springframework.security.oauth2.server.authorization.client.JdbcRegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configuration.OAuth2AuthorizationServerConfiguration;
@@ -131,9 +137,11 @@ public class SecurityConfig {
                                 authorizationServer.oidc(
                                         oidc ->
                                                 oidc.userInfoEndpoint(
-                                                        userInfo ->
-                                                                userInfo.userInfoMapper(
-                                                                        userInfoMapper()))))
+                                                                userInfo ->
+                                                                        userInfo.userInfoMapper(
+                                                                                userInfoMapper()))
+                                                        .clientRegistrationEndpoint(
+                                                                Customizer.withDefaults())))
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
                 .authorizeHttpRequests((authorize) -> authorize.anyRequest().authenticated())
                 .exceptionHandling(
@@ -172,7 +180,24 @@ public class SecurityConfig {
     }
 
     @Bean
-    public RegisteredClientRepository registeredClientRepository(TokenSettings tokenSettings) {
+    RegisteredClientRepository registeredClientRepository(JdbcTemplate template) {
+        return new JdbcRegisteredClientRepository(template);
+    }
+
+//    @Bean
+//    OAuth2AuthorizationService oAuth2AuthorizationService(
+//            JdbcTemplate template,
+//            RegisteredClientRepository regClientRepository,
+//            ObjectMapper om) {
+//        SecurityJackson2Modules.enableDefaultTyping(om);
+//        JdbcOAuth2AuthorizationService jdbcOAuth2AuthorizationService =
+//                new JdbcOAuth2AuthorizationService(template, regClientRepository);
+//        return jdbcOAuth2AuthorizationService;
+//    }
+
+    @Bean
+    public ApplicationRunner registeredClientCreator(
+            TokenSettings tokenSettings, RegisteredClientRepository repository) {
         RegisteredClient oidcClient =
                 RegisteredClient.withId(UUID.randomUUID().toString())
                         .clientId("oidc-client")
@@ -207,6 +232,11 @@ public class SecurityConfig {
                         .scope(OidcScopes.PROFILE)
                         .scope(OidcScopes.EMAIL)
                         .tokenSettings(tokenSettings)
+                        .clientSettings(
+                                ClientSettings.builder()
+                                        .requireAuthorizationConsent(false)
+                                        .requireProofKey(true)
+                                        .build())
                         .build();
         RegisteredClient gatewayClient =
                 RegisteredClient.withId(UUID.randomUUID().toString())
@@ -239,7 +269,20 @@ public class SecurityConfig {
                                         .accessTokenTimeToLive(Duration.ofMinutes(15))
                                         .build())
                         .build();
-        return new InMemoryRegisteredClientRepository(oidcClient, publicClient, gatewayClient, tradingServiceClient);
+        return args -> {
+            if (repository.findByClientId(oidcClient.getClientId()) == null) {
+                repository.save(oidcClient);
+            }
+            if (repository.findByClientId(publicClient.getClientId()) == null) {
+                repository.save(publicClient);
+            }
+            if (repository.findByClientId(gatewayClient.getClientId()) == null) {
+                repository.save(gatewayClient);
+            }
+            if (repository.findByClientId(tradingServiceClient.getClientId()) == null) {
+                repository.save(tradingServiceClient);
+            }
+        };
     }
 
     @Bean
