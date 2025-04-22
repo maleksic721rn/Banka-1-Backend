@@ -6,6 +6,7 @@ import com.banka1.banking.dto.MoneyTransferDTO;
 import com.banka1.banking.dto.NotificationDTO;
 import com.banka1.banking.models.*;
 import com.banka1.banking.models.Currency;
+import com.banka1.banking.models.helper.AccountStatus;
 import com.banka1.banking.models.helper.CurrencyType;
 import com.banka1.banking.models.helper.TransferStatus;
 import com.banka1.banking.models.helper.TransferType;
@@ -616,6 +617,9 @@ public class TransferService {
                 debitTransaction.setFinalAmount(transfer.getAmount());
             }
             debitTransaction.setTimestamp(Instant.now().toEpochMilli());
+            LocalDateTime now = LocalDateTime.now();
+            debitTransaction.setDate(now.toLocalDate());
+            debitTransaction.setTime(now.toLocalTime());
             debitTransaction.setDescription("Debit transaction for transfer " + transfer.getId());
             debitTransaction.setTransfer(transfer);
             transactionRepository.save(debitTransaction);
@@ -657,7 +661,6 @@ public class TransferService {
     }
 
     public boolean validateMoneyTransfer(MoneyTransferDTO transferDTO){
-
         Optional<Account> fromAccountOtp = accountRepository.findByAccountNumber(transferDTO.getFromAccountNumber());
         Optional<Account> toAccountOtp = accountRepository.findByAccountNumber(transferDTO.getRecipientAccount());
 
@@ -669,6 +672,15 @@ public class TransferService {
         Account toAccount = toAccountOtp.get();
 
         if(transferDTO.getAmount() <= 0){
+            return false;
+        }
+
+        if (fromAccount.getStatus() != AccountStatus.ACTIVE ||
+                toAccount.getStatus() != AccountStatus.ACTIVE) {
+            return false;
+        }
+
+        if (!fromAccount.getCurrencyType().equals(toAccount.getCurrencyType())) {
             return false;
         }
 
