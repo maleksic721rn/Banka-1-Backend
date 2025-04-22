@@ -13,6 +13,7 @@ import com.banka1.banking.services.implementation.AuthService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 import com.banka1.banking.repository.TransactionRepository;
 
@@ -105,7 +106,7 @@ public class OrderService {
         return amount;
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.SERIALIZABLE)
     public void processOrderTransaction(OrderTransactionInitiationDTO dto) {
         System.out.println("=== POČINJE processOrderTransaction ===");
         System.out.println("Buyer ID: " + dto.getBuyerAccountId());

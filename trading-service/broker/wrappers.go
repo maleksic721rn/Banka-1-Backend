@@ -1,6 +1,8 @@
 package broker
 
 import (
+	"errors"
+
 	"banka1.com/dto"
 	"banka1.com/types"
 )
@@ -38,4 +40,22 @@ func SendOTCTransactionSuccess(uid string) error {
 
 func SendOTCPremium(dto *dto.OTCPremiumFeeDTO) error {
 	return sendReliable("otc-pay-premium", dto)
+}
+
+func SendOrderTransactionInit(dto *dto.OrderTransactionInitiationDTO) error {
+	if conn == nil {
+		return nil
+	}
+
+	var m *string
+	err := sendAndRecieve("order-init", dto, &m)
+	if err != nil {
+		return err
+	}
+
+	if m == nil || *m == "null" {
+		return nil
+	}
+
+	return errors.New(*m)
 }

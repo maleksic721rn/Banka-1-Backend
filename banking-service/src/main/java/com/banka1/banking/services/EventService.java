@@ -15,6 +15,7 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.Instant;
@@ -54,6 +55,7 @@ public class EventService {
             event.setMessageType(dto.getMessageType());
             event.setPayload(rawPayload);
             event.setUrl(sourceUrl);
+
             event.setIdempotenceKey(dto.getIdempotenceKey());
             event.setDirection(EventDirection.INCOMING);
             event.setStatus(DeliveryStatus.PENDING);
@@ -75,26 +77,22 @@ public class EventService {
             throw new RuntimeException("Failed to create event: " + e.getMessage());
         }
 
+
+        System.out.println("Saving event with idempotence key: " + event.getIdempotenceKey().getRoutingNumber() + " - " + event.getIdempotenceKey().getLocallyGeneratedKey());
         return eventRepository.save(event);
     }
 
+    @Transactional
     public Event createEvent(CreateEventDTO createEventDTO) {
         Event event = new Event();
         event.setPayload(createEventDTO.getPayload());
         event.setUrl(createEventDTO.getUrl());
-        System.out.println("Event created: " + event.getPayload());
-        event.setMessageType(createEventDTO.getMessageType());
-        System.out.println("Event created: " + event.getMessageType());
+        event.setMessageType(createEventDTO.getMessage().getMessageType());
         event.setDirection(EventDirection.OUTGOING);
 
-        IdempotenceKey idempotenceKey = new IdempotenceKey();
-        idempotenceKey.setRoutingNumber(111);
-        idempotenceKey.setLocallyGeneratedKey(UUID.randomUUID().toString());
-
-        event.setIdempotenceKey(idempotenceKey);
+        event.setIdempotenceKey(createEventDTO.getMessage().getIdempotenceKey());
 
         Event saved = eventRepository.save(event);
-
         return saved;
     }
 
@@ -119,6 +117,11 @@ public class EventService {
                 .orElseThrow(() -> new RuntimeException("Event not found"));
 
         return eventDeliveryRepository.findByEvent(event);
+    }
+
+    public Event findEventByIdempotenceKey(IdempotenceKey idempotenceKey) {
+        return eventRepository.findByIdempotenceKey(idempotenceKey)
+                .orElseThrow(() -> new RuntimeException("Event not found"));
     }
 
 }

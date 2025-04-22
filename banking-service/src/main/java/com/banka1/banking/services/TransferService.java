@@ -6,7 +6,9 @@ import com.banka1.banking.dto.MoneyTransferDTO;
 import com.banka1.banking.dto.NotificationDTO;
 import com.banka1.banking.models.*;
 import com.banka1.banking.models.Currency;
+import com.banka1.banking.models.helper.AccountStatus;
 import com.banka1.banking.models.helper.CurrencyType;
+import com.banka1.banking.models.helper.IdempotenceKey;
 import com.banka1.banking.models.helper.TransferStatus;
 import com.banka1.banking.models.helper.TransferType;
 import com.banka1.banking.repository.*;
@@ -20,6 +22,12 @@ import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.*;
 
 @Service
@@ -49,8 +57,10 @@ public class TransferService {
     private final BankAccountUtils bankAccountUtils;
     private final ReceiverService receiverService;
 
+    private final InterbankService interbankService;
 
-    public TransferService(AccountRepository accountRepository, TransferRepository transferRepository, TransactionRepository transactionRepository, CurrencyRepository currencyRepository, JmsTemplate jmsTemplate, MessageHelper messageHelper, @Value("${destination.email}") String destinationEmail, UserServiceCustomer userServiceCustomer, ExchangeService exchangeService, OtpTokenService otpTokenService, BankAccountUtils bankAccountUtils, ReceiverService receiverService) {
+
+    public TransferService(AccountRepository accountRepository, TransferRepository transferRepository, TransactionRepository transactionRepository, CurrencyRepository currencyRepository, JmsTemplate jmsTemplate, MessageHelper messageHelper, @Value("${destination.email}") String destinationEmail, UserServiceCustomer userServiceCustomer, ExchangeService exchangeService, OtpTokenService otpTokenService, BankAccountUtils bankAccountUtils, ReceiverService receiverService, InterbankService interbankService) {
         this.accountRepository = accountRepository;
         this.transferRepository = transferRepository;
         this.transactionRepository = transactionRepository;
@@ -63,6 +73,7 @@ public class TransferService {
         this.otpTokenService = otpTokenService;
         this.bankAccountUtils = bankAccountUtils;
         this.receiverService = receiverService;
+        this.interbankService = interbankService;
     }
 
     @Transactional(isolation = Isolation.SERIALIZABLE)
@@ -72,6 +83,7 @@ public class TransferService {
 
         System.out.println("Transfer type: " + transfer.getType());
         return switch (transfer.getType()) {
+            case FOREIGN_BANK -> processForeignBankTransfer(transferId);
             case INTERNAL, EXCHANGE -> processInternalTransfer(transferId);
             case EXTERNAL, FOREIGN -> processExternalTransfer(transferId);
             default -> throw new RuntimeException("Invalid transfer type");
@@ -439,6 +451,9 @@ public class TransferService {
         transaction.setFinalAmount(amount - fee);
         transaction.setFee(fee);
         transaction.setTimestamp(System.currentTimeMillis());
+        LocalDateTime now = LocalDateTime.now();
+        transaction.setDate(now.toLocalDate());
+        transaction.setTime(now.toLocalTime());
         transaction.setDescription(description);
         transaction.setTransfer(transfer);
         return transaction;
@@ -481,6 +496,57 @@ public class TransferService {
         transferRepository.saveAll(transfers);
         transactionRepository.saveAll(transactions);
         accountRepository.saveAll(accounts);
+    }
+
+
+    @Transactional
+    public String processForeignBankTransfer(Long transferId) {
+        Transfer transfer = transferRepository.findById(transferId)
+                .orElseThrow(() -> new RuntimeException("Transfer not found"));
+
+        if (!transfer.getStatus().equals(TransferStatus.RESERVED)) {
+            throw new RuntimeException("Transfer is not in pending state");
+        }
+
+        if (!transfer.getType().equals(TransferType.FOREIGN_BANK)) {
+            throw new RuntimeException("Invalid transfer type for this process");
+        }
+
+        Account fromAccount = transfer.getFromAccountId();
+        Double amount = transfer.getAmount();
+
+        if (fromAccount.getBalance() < amount) {
+            transfer.setStatus(TransferStatus.FAILED);
+            transfer.setNote("Insufficient balance");
+            transferRepository.save(transfer);
+            throw new RuntimeException("Insufficient balance for transfer");
+        }
+
+        try {
+            System.out.println(fromAccount.getBalance() + " - " + amount);
+            fromAccount.setBalance(fromAccount.getBalance() - amount);
+            fromAccount.setReservedBalance(fromAccount.getReservedBalance() + amount);
+
+            accountRepository.save(fromAccount);
+
+            interbankService.sendNewTXMessage(transfer);
+
+            transfer.setStatus(TransferStatus.RESERVED);
+            transfer.setCompletedAt(Instant.now().toEpochMilli());
+            transferRepository.save(transfer);
+
+            //Inkrementiranje transakcije za fast payment opciju
+            if(transfer.getSavedReceiverId() != null)
+                receiverService.incrementUsage(transfer.getSavedReceiverId());
+
+            return "Transfer reserved successfully";
+        } catch (Exception e) {
+            transfer.setStatus(TransferStatus.FAILED);
+            transfer.setNote("Error during processing: " + e.getMessage());
+            log.error(e.getMessage());
+            transferRepository.save(transfer);
+            throw new RuntimeException("Transfer processing failed", e);
+        }
     }
 
 
@@ -607,6 +673,9 @@ public class TransferService {
                 debitTransaction.setFinalAmount(transfer.getAmount());
             }
             debitTransaction.setTimestamp(Instant.now().toEpochMilli());
+            LocalDateTime now = LocalDateTime.now();
+            debitTransaction.setDate(now.toLocalDate());
+            debitTransaction.setTime(now.toLocalTime());
             debitTransaction.setDescription("Debit transaction for transfer " + transfer.getId());
             debitTransaction.setTransfer(transfer);
             transactionRepository.save(debitTransaction);
@@ -652,12 +721,12 @@ public class TransferService {
         Optional<Account> fromAccountOtp = accountRepository.findByAccountNumber(transferDTO.getFromAccountNumber());
         Optional<Account> toAccountOtp = accountRepository.findByAccountNumber(transferDTO.getRecipientAccount());
 
-        if(fromAccountOtp.isEmpty() || toAccountOtp.isEmpty()){
+        // receiver account is null and should not be checked if it is not in our bank
+        if(fromAccountOtp.isEmpty() || (toAccountOtp.isEmpty() && transferDTO.getRecipientAccount().startsWith("111"))){
             return false;
         }
 
         Account fromAccount = fromAccountOtp.get();
-        Account toAccount = toAccountOtp.get();
 
         if(transferDTO.getAmount() <= 0){
             return false;
@@ -672,7 +741,12 @@ public class TransferService {
             }
         }
 
-        return !fromAccount.getOwnerID().equals(toAccount.getOwnerID());
+        if (!toAccountOtp.isEmpty()) {
+            Account toAccount = toAccountOtp.get();
+            return !fromAccount.getOwnerID().equals(toAccount.getOwnerID());
+        }
+
+        return true;
     }
 
     public Transfer createInternalTransferEntity(Account fromAccount, Account toAccount,InternalTransferDTO internalTransferDTO, CustomerDTO customerData, String description) {
@@ -787,7 +861,49 @@ public class TransferService {
         return transferRepository.saveAndFlush(transfer);
     }
 
+    public Transfer createForeignBankMoneyTransferEntity(Account fromAccount, String foreignBankAccount, MoneyTransferDTO moneyTransferDTO) {
+        Currency fromCurrency = currencyRepository.findByCode(fromAccount.getCurrencyType())
+                .orElseThrow(() -> new IllegalArgumentException("Greska"));
+
+        Long customerId = fromAccount.getOwnerID();
+        CustomerDTO customerData = userServiceCustomer.getCustomerById(customerId);
+
+        if (customerData == null ) {
+            throw new IllegalArgumentException("Korisnik nije pronađen");
+        }
+
+        Transfer transfer = new Transfer();
+        transfer.setFromAccountId(fromAccount);
+        transfer.setToAccountId(null);
+        transfer.setAmount(moneyTransferDTO.getAmount());
+        transfer.setReceiver(moneyTransferDTO.getReceiver());
+        transfer.setAdress(moneyTransferDTO.getAdress() != null ? moneyTransferDTO.getAdress() : "N/A");
+        transfer.setStatus(TransferStatus.RESERVED);
+        transfer.setType(TransferType.FOREIGN_BANK);
+        transfer.setFromCurrency(fromCurrency);
+        transfer.setToCurrency(fromCurrency);
+        transfer.setPaymentCode(moneyTransferDTO.getPayementCode());
+        transfer.setPaymentReference(moneyTransferDTO.getPayementReference() != null ? moneyTransferDTO.getPayementReference() : "N/A");
+        transfer.setPaymentDescription(moneyTransferDTO.getPayementDescription());
+        transfer.setCreatedAt(System.currentTimeMillis());
+        transfer.setNote(foreignBankAccount);
+
+        transfer.setSavedReceiverId(moneyTransferDTO.getSavedReceiverId());
+
+        return transferRepository.saveAndFlush(transfer);
+    }
+
     public Long createMoneyTransfer(MoneyTransferDTO moneyTransferDTO){
+
+        System.out.println("----------------------------------------");
+        System.out.println("Creating money transfer");
+        System.out.println("From account: " + moneyTransferDTO.getFromAccountNumber());
+        System.out.println("To account: " + moneyTransferDTO.getRecipientAccount());
+        // if moneyTransferDTO.getRecipientAccount() starts with 444 then it payment to the other bank
+        if (moneyTransferDTO.getRecipientAccount().startsWith("444")) {
+            System.out.println("Creating foreign bank transfer");
+            return createForeignBankTransfer(moneyTransferDTO);
+        }
 
         Optional<Account> fromAccountOtp = accountRepository.findByAccountNumber(moneyTransferDTO.getFromAccountNumber());
         Optional<Account> toAccountOtp = accountRepository.findByAccountNumber(moneyTransferDTO.getRecipientAccount());
@@ -841,6 +957,59 @@ public class TransferService {
         return null;
     }
 
+    public Long createForeignBankTransfer(MoneyTransferDTO moneyTransferDTO) {
+        Optional<Account> fromAccountOtp = accountRepository.findByAccountNumber(moneyTransferDTO.getFromAccountNumber());
+
+        if (!fromAccountOtp.isPresent()){
+            throw new IllegalArgumentException("Račun nije pronađen");
+        }
+
+        Account fromAccount = fromAccountOtp.get();
+
+        Long customerId = fromAccount.getOwnerID();
+        CustomerDTO customerData = userServiceCustomer.getCustomerById(customerId);
+
+        if (customerData == null ) {
+            throw new IllegalArgumentException("Korisnik nije pronađen");
+        }
+
+        String email = customerData.getEmail();
+        String firstName = customerData.getFirstName();
+        String lastName = customerData.getLastName();
+
+        var transfer = createForeignBankMoneyTransferEntity(fromAccount, moneyTransferDTO.getRecipientAccount(), moneyTransferDTO);
+
+        String otpCode = otpTokenService.generateOtp(transfer.getId());
+        transfer.setOtp(otpCode);
+        transferRepository.save(transfer);
+
+        System.out.println("OTP code: " + otpCode);
+
+        NotificationDTO emailDto = new NotificationDTO();
+        emailDto.setSubject("Verifikacija");
+        emailDto.setEmail(email);
+        emailDto.setMessage("Vaš verifikacioni kod je: " + otpCode);
+        emailDto.setFirstName(firstName);
+        emailDto.setLastName(lastName);
+        emailDto.setType("email");
+
+        NotificationDTO pushNotification = new NotificationDTO();
+        pushNotification.setSubject("Verifikacija");
+        pushNotification.setMessage("Kliknite kako biste verifikovali transfer");
+        pushNotification.setFirstName(firstName);
+        pushNotification.setLastName(lastName);
+        pushNotification.setEmail(email);
+        pushNotification.setType("firebase");
+        Map<String, String> data = Map.of("transferId", transfer.getId().toString(), "otp", otpCode);
+        pushNotification.setAdditionalData(data);
+
+        jmsTemplate.convertAndSend(destinationEmail,messageHelper.createTextMessage(emailDto));
+        jmsTemplate.convertAndSend(destinationEmail,messageHelper.createTextMessage(pushNotification));
+
+        return transfer.getId();
+
+    }
+
     @Scheduled(fixedRate = 10000)
     public void cancelExpiredTransfers(){
 
@@ -863,5 +1032,109 @@ public class TransferService {
     public List<Transfer> getAllTransfersStartedByUser(Long userId) {
         return transferRepository.findAllByFromAccountId_OwnerID(userId);
     }
+
+    public Transfer commitForeignBankTransfer(IdempotenceKey idempotenceKey) {
+        Long transferID = Long.valueOf(idempotenceKey.getLocallyGeneratedKey());
+        Transfer transfer = transferRepository.findById(transferID)
+                .orElseThrow(() -> new RuntimeException("Transfer not found"));
+
+        if (transfer.getStatus() != TransferStatus.RESERVED) {
+            throw new RuntimeException("Transfer is not in reserved state");
+        }
+
+        if (transfer.getStatus() == TransferStatus.COMPLETED) {
+            throw new RuntimeException("Transfer has already been processed");
+        }
+
+        try {
+
+            // create transaction for the transfer
+            Transaction transaction = new Transaction();
+            transaction.setFromAccountId(transfer.getFromAccountId());
+            transaction.setToAccountId(null); // No destination account for foreign bank transfer
+            transaction.setAmount(transfer.getAmount());
+            transaction.setCurrency(transfer.getFromCurrency());
+            transaction.setFinalAmount(transfer.getAmount());
+            transaction.setFee(0.0);
+            transaction.setTimestamp(System.currentTimeMillis());
+            transaction.setDescription("Foreign bank transfer");
+            transaction.setTransfer(transfer);
+            transactionRepository.save(transaction);
+
+            Account fromAccount = transfer.getFromAccountId();
+            fromAccount.setReservedBalance(fromAccount.getReservedBalance() - transfer.getAmount());
+
+            transfer.setStatus(TransferStatus.COMPLETED);
+            transfer.setCompletedAt(System.currentTimeMillis());
+            transferRepository.save(transfer);
+            return transfer;
+        } catch (Exception e) {
+            throw new RuntimeException("Error processing transfer", e);
+        }
+    }
+
+    public Transfer rollbackForeignBankTransfer(IdempotenceKey idempotenceKey) {
+        Long transferID = Long.valueOf(idempotenceKey.getLocallyGeneratedKey());
+        Transfer transfer = transferRepository.findById(transferID)
+                .orElseThrow(() -> new RuntimeException("Transfer not found"));
+
+        if (transfer.getStatus() != TransferStatus.RESERVED) {
+            throw new RuntimeException("Transfer is not in reserved state");
+        }
+
+        if (transfer.getStatus() == TransferStatus.CANCELLED) {
+            throw new RuntimeException("Transfer has already been cancelled");
+        }
+
+        try {
+            Account fromAccount = transfer.getFromAccountId();
+            fromAccount.setReservedBalance(fromAccount.getReservedBalance() - transfer.getAmount());
+            fromAccount.setBalance(fromAccount.getBalance() + transfer.getAmount());
+
+            transfer.setStatus(TransferStatus.CANCELLED);
+            transferRepository.save(transfer);
+            return transfer;
+        } catch (Exception e) {
+            throw new RuntimeException("Error processing transfer", e);
+        }
+    }
+
+    @Transactional
+    public Transfer receiveForeignBankTransfer(String accountNumber, double amount, String description, String senderName, Currency currency) {
+        Account toAccount = accountRepository.findByAccountNumber(accountNumber)
+                .orElseThrow(() -> new RuntimeException("Destination account not found: " + accountNumber));
+
+        toAccount.setBalance(toAccount.getBalance() + amount);
+        accountRepository.save(toAccount);
+
+        Transfer transfer = new Transfer();
+        transfer.setFromAccountId(null);
+        transfer.setToAccountId(toAccount);
+        transfer.setAmount(amount);
+        transfer.setStatus(TransferStatus.COMPLETED);
+        transfer.setType(TransferType.FOREIGN_BANK);
+        transfer.setPaymentDescription(description);
+        transfer.setReceiver(senderName);
+        transfer.setFromCurrency(currency);
+        transfer.setToCurrency(currency);
+        transfer.setCreatedAt(System.currentTimeMillis());
+
+        transfer = transferRepository.save(transfer);
+
+        Transaction transaction = new Transaction();
+        transaction.setFromAccountId(null);
+        transaction.setToAccountId(toAccount);
+        transaction.setAmount(amount);
+        transaction.setCurrency(currency);
+        transaction.setFinalAmount(amount);
+        transaction.setFee(0.0);
+        transaction.setTimestamp(System.currentTimeMillis());
+        transaction.setDescription("Received transfer from foreign bank");
+        transaction.setTransfer(transfer);
+        transactionRepository.save(transaction);
+
+        return transfer;
+    }
+
 }
 
