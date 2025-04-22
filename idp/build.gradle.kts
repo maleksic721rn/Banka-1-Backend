@@ -61,15 +61,13 @@ tasks.named<JacocoReport>("jacocoTestReport") {
         html.outputLocation.set(layout.buildDirectory.dir("reports/jacoco"))
     }
 
-    doLast {
-        classDirectories.setFrom(files(classDirectories.files.map { file ->
-            fileTree(file) {
-                exclude(
-                    "**/*Application*", "**/config/**", "**/model/**", "**/dto/**"
-                )
-            }
-        }))
-    }
+    classDirectories.setFrom(files(classDirectories.files.map { file ->
+        fileTree(file) {
+            exclude(
+                "**/*Application*", "**/config/**", "**/model/**", "**/dto/**"
+            )
+        }
+    }))
 }
 
 tasks.named<JacocoCoverageVerification>("jacocoTestCoverageVerification") {
