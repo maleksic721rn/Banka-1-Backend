@@ -1,5 +1,6 @@
 package com.banka1.banking.controllers;
 
+import com.banka1.banking.aspect.Authorization;
 import com.banka1.banking.aspect.ReceiverAuthorization;
 import com.banka1.banking.dto.ReceiverDTO;
 import com.banka1.banking.models.Receiver;
@@ -44,7 +45,7 @@ public class ReceiverController {
             )
     })
     @PostMapping
-    @ReceiverAuthorization
+    @Authorization
     public ResponseEntity<?> addReceivers(
             @RequestBody @io.swagger.v3.oas.annotations.parameters.RequestBody(
                     description = "Podaci o primaocu",
@@ -75,7 +76,7 @@ public class ReceiverController {
             )
     })
     @GetMapping("/{customerId}")
-    @ReceiverAuthorization
+    @Authorization
     public ResponseEntity<?> getReceivers(
             @Parameter(description = "ID korisnika", required = true, example = "2")
             @PathVariable Long customerId) {
