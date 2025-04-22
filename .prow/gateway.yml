@@ -91,7 +91,28 @@ presubmits:
               # Promeniti ovu komandu da pokreće one servise koji vam trebaju za vaše
               # testove. Moguće je više puta pokrenuti "docker compose up" za različite
               # Docker Compose servise.
-              # docker compose up -d banking-db message-broker user-service
+              cat <<EOF > extra-hosts.yml
+              services:
+                trading-db:
+                  extra_hosts:
+                    - "idp.localhost:127.0.0.1"
+                message-broker:
+                  extra_hosts:
+                    - "idp.localhost:127.0.0.1"
+                user-service:
+                  extra_hosts:
+                    - "idp.localhost:127.0.0.1"
+                banking-service:
+                  extra_hosts:
+                    - "idp.localhost:127.0.0.1"
+                proxy:
+                  extra_hosts:
+                    - "idp.localhost:127.0.0.1"
+                idp:
+                  extra_hosts:
+                    - "idp.localhost:127.0.0.1"
+              EOF
+              docker compose -f compose.yaml -f extra-hosts.yml up -d proxy idp
 
               # trap komanda obezbeđuje da se "collectJUnitCoverage"
               # funkcija izvrši pre samog izlaska iz ove skripte, nezavisno
