@@ -197,7 +197,7 @@ INSERT INTO loan (number_of_installments, loan_type, currency_type, interest_typ
 VALUES (3, 'CASH', 'RSD', 'FIXED', 'PENDING', 5.5, 6.0, 500000.0,
         EXTRACT(EPOCH FROM CURRENT_TIMESTAMP),
         EXTRACT(EPOCH FROM CURRENT_TIMESTAMP + INTERVAL '7 days'),
-        22000.0, TO_CHAR(CURRENT_TIMESTAMP + INTERVAL '30 days', 'YYYY-MM-DD'),
+        22000.0, TO_CHAR(CURRENT_TIMESTAMP + INTERVAL '30 days', 'DD-MM-YYYY'),
         500000.0, 'Home renovation', 100, '+123456789');
 
 INSERT INTO loan (number_of_installments, loan_type, currency_type, interest_type,
@@ -207,7 +207,7 @@ INSERT INTO loan (number_of_installments, loan_type, currency_type, interest_typ
 VALUES (3, 'CASH', 'RSD', 'FIXED', 'PENDING', 5.5, 6.0, 550000.0,
         EXTRACT(EPOCH FROM CURRENT_TIMESTAMP),
         EXTRACT(EPOCH FROM CURRENT_TIMESTAMP + INTERVAL '7 days'),
-        22000.0, TO_CHAR(CURRENT_TIMESTAMP + INTERVAL '30 days', 'YYYY-MM-DD'),
+        22000.0, TO_CHAR(CURRENT_TIMESTAMP + INTERVAL '30 days', 'DD-MM-YYYY'),
         500000.0, 'Home renovation, attempt 2', 100, '+123456789');
 
 -- User accounts - Marko (ID: 1)
@@ -218,7 +218,7 @@ INSERT INTO loan (number_of_installments, loan_type, currency_type, interest_typ
 VALUES (3, 'CASH', 'RSD', 'FIXED', 'PENDING', 5.5, 6.0, 500000.0,
         EXTRACT(EPOCH FROM CURRENT_TIMESTAMP) ,
         EXTRACT(EPOCH FROM CURRENT_TIMESTAMP + INTERVAL '7 days'),
-        22000.0, TO_CHAR(CURRENT_TIMESTAMP + INTERVAL '30 days', 'YYYY-MM-DD'),
+        22000.0, TO_CHAR(CURRENT_TIMESTAMP + INTERVAL '30 days', 'DD-MM-YYYY'),
         500000.0, 'Home renovation', 100, '+123456789');
 
 -- User accounts - Anastasija (ID: 2)
@@ -229,7 +229,7 @@ INSERT INTO loan (number_of_installments, loan_type, currency_type, interest_typ
 VALUES (24, 'CASH', 'RSD', 'FIXED', 'PENDING', 5.5, 6.0, 550000.0,
         EXTRACT(EPOCH FROM CURRENT_TIMESTAMP) ,
         EXTRACT(EPOCH FROM CURRENT_TIMESTAMP + INTERVAL '7 days'),
-        22916.0, TO_CHAR(CURRENT_TIMESTAMP + INTERVAL '30 days', 'YYYY-MM-DD'),
+        22916.0, TO_CHAR(CURRENT_TIMESTAMP + INTERVAL '30 days', 'DD-MM-YYYY'),
         500000.0, 'Medical Expenses', 2, '+123456789');
 
 -- User accounts - Jovan (ID: 3)
@@ -240,7 +240,7 @@ INSERT INTO loan (number_of_installments, loan_type, currency_type, interest_typ
 VALUES (12, 'CASH', 'RSD', 'FIXED', 'PENDING', 5.5, 6.0, 5000.0,
         EXTRACT(EPOCH FROM CURRENT_TIMESTAMP) ,
         EXTRACT(EPOCH FROM CURRENT_TIMESTAMP + INTERVAL '7 days'),
-        416.0, TO_CHAR(CURRENT_TIMESTAMP + INTERVAL '30 days', 'YYYY-MM-DD'),
+        416.0, TO_CHAR(CURRENT_TIMESTAMP + INTERVAL '30 days', 'DD-MM-YYYY'),
         5000.0, 'Travel', 3, '+123456789');
 
 -- User accounts - Nemanja  (ID: 4)
@@ -251,7 +251,7 @@ INSERT INTO loan (number_of_installments, loan_type, currency_type, interest_typ
 VALUES (2, 'CASH', 'RSD', 'FIXED', 'PENDING', 5.5, 6.0, 5000.0,
         EXTRACT(EPOCH FROM CURRENT_TIMESTAMP) ,
         EXTRACT(EPOCH FROM CURRENT_TIMESTAMP + INTERVAL '7 days'),
-        2500.0, TO_CHAR(CURRENT_TIMESTAMP + INTERVAL '30 days', 'YYYY-MM-DD'),
+        2500.0, TO_CHAR(CURRENT_TIMESTAMP + INTERVAL '30 days', 'DD-MM-YYYY'),
         5000.0, 'Investment', 4, '+123456789');
 
 -- User accounts - Nikola  (ID: 5)
@@ -262,7 +262,7 @@ INSERT INTO loan (number_of_installments, loan_type, currency_type, interest_typ
 VALUES (12, 'CASH', 'RSD', 'FIXED', 'PAID_OFF', 5.5, 6.0, 120000.0,
         EXTRACT(EPOCH FROM CURRENT_TIMESTAMP) ,
         EXTRACT(EPOCH FROM CURRENT_TIMESTAMP + INTERVAL '7 days'),
-        10000.0, TO_CHAR(CURRENT_TIMESTAMP + INTERVAL '30 days', 'YYYY-MM-DD'),
+        10000.0, TO_CHAR(CURRENT_TIMESTAMP + INTERVAL '30 days', 'DD-MM-YYYY'),
         0.0, 'Starting a Business ', 5, '+123456789');
 
 INSERT INTO loan (number_of_installments, loan_type, currency_type, interest_type,
@@ -272,7 +272,7 @@ INSERT INTO loan (number_of_installments, loan_type, currency_type, interest_typ
 VALUES (3, 'CASH', 'RSD', 'FIXED', 'PENDING', 5.5, 6.0, 550000.0,
         EXTRACT(EPOCH FROM CURRENT_TIMESTAMP) ,
         EXTRACT(EPOCH FROM CURRENT_TIMESTAMP + INTERVAL '7 days'),
-        22000.0, TO_CHAR(CURRENT_TIMESTAMP + INTERVAL '30 days', 'YYYY-MM-DD'),
+        22000.0, TO_CHAR(CURRENT_TIMESTAMP + INTERVAL '30 days', 'DD-MM-YYYY'),
         500000.0, 'Home renovation, attempt 2', 100, '+123456789');
 
 -- User accounts - Jelena  (ID: 6)
@@ -283,7 +283,7 @@ INSERT INTO loan (number_of_installments, loan_type, currency_type, interest_typ
 VALUES (12, 'CASH', 'RSD', 'FIXED', 'APPROVED', 5.5, 6.0, 120000.0,
         EXTRACT(EPOCH FROM CURRENT_TIMESTAMP) ,
         EXTRACT(EPOCH FROM CURRENT_TIMESTAMP + INTERVAL '7 days'),
-        10000.0, TO_CHAR(CURRENT_TIMESTAMP + INTERVAL '30 days', 'YYYY-MM-DD'),
+        10000.0, TO_CHAR(CURRENT_TIMESTAMP + INTERVAL '30 days', 'DD-MM-YYYY'),
         120000.0, 'Starting a Business ', 6, '+123456789');
 
 -- Accounts for Marko Marković (ID: 1)
@@ -327,6 +327,26 @@ INSERT INTO account (account_number, balance, company_id, daily_limit, monthly_l
                      status, type, subtype)
 VALUES ('111000100000000321', 1000.0, NULL, 200.0, 10000.0, 0.0, 0.0, 'USD',
         1630454400000, 2025030500000, 1, 0.0, 0.0, 1, 'ACTIVE', 'FOREIGN_CURRENCY', 'STANDARD');
+
+INSERT INTO account (account_number, balance, company_id, daily_limit, monthly_limit,
+                     daily_spent, monthly_spent, currency_type, expiration_date, created_date,
+                     employeeid, monthly_maintenance_fee, reserved_balance, ownerid,
+                     status, type, subtype)
+VALUES ('111000100000000323', 1000.0, NULL, 200.0, 10000.0, 0.0, 0.0, 'USD',
+        1630454400000, 2025030500000, 1, 0.0, 0.0, 4, 'ACTIVE', 'FOREIGN_CURRENCY', 'STANDARD');
+INSERT INTO account (account_number, balance, company_id, daily_limit, monthly_limit,
+                     daily_spent, monthly_spent, currency_type, expiration_date, created_date,
+                     employeeid, monthly_maintenance_fee, reserved_balance, ownerid,
+                     status, type, subtype)
+VALUES ('111000100000000324', 1000.0, NULL, 200.0, 10000.0, 0.0, 0.0, 'USD',
+        1630454400000, 2025030500000, 1, 0.0, 0.0, 5, 'ACTIVE', 'FOREIGN_CURRENCY', 'STANDARD');
+INSERT INTO account (account_number, balance, company_id, daily_limit, monthly_limit,
+                     daily_spent, monthly_spent, currency_type, expiration_date, created_date,
+                     employeeid, monthly_maintenance_fee, reserved_balance, ownerid,
+                     status, type, subtype)
+VALUES ('111000100000000325', 1000.0, NULL, 200.0, 10000.0, 0.0, 0.0, 'USD',
+        1630454400000, 2025030500000, 1, 0.0, 0.0, 6, 'ACTIVE', 'FOREIGN_CURRENCY', 'STANDARD');
+
 -- ID: 1
 INSERT INTO card(ACTIVE, BLOCKED, CARD_LIMIT, ACCOUNT_ID, AUTHORIZED_PERSON_ID, CREATED_AT, EXPIRATION_DATE, CARD_BRAND, CARD_CVV, CARD_NAME, CARD_NUMBER, CARD_TYPE)
 VALUES (TRUE,FALSE,1000.0,1,NULL,EXTRACT(EPOCH FROM CURRENT_TIMESTAMP) * 1000,EXTRACT(EPOCH FROM CURRENT_TIMESTAMP) * 1000*365,'VISA',180,'BANKA',4098745621983456,'DEBIT');
@@ -398,17 +418,17 @@ VALUES (1000.0, EXTRACT(EPOCH FROM CURRENT_TIMESTAMP) * 1000*2, EXTRACT(EPOCH FR
 INSERT INTO transfer(amount, completed_at, created_at, from_account_id, from_currency_id, to_account_id, to_currency_id, adress, note, otp, payment_code, payment_description, payment_reference, receiver, status, type)
 VALUES (1000.0, EXTRACT(EPOCH FROM CURRENT_TIMESTAMP) * 1000*2, EXTRACT(EPOCH FROM CURRENT_TIMESTAMP) * 1000, 100, 1, 20, 1, 'Ustanicka 1', 'Payment for services', '123', '234', 'Payment for services', '94', 'Jelena Jovanovic', 'COMPLETED', 'INTERNAL');
 
-INSERT INTO transaction(amount, final_amount, fee, bank_only, currency_id, from_account_id, timestamp, to_account_id,transfer_id, description)
-VALUES (1000.0,1000.0,0.0,false,1,100,EXTRACT(EPOCH FROM CURRENT_TIMESTAMP) * 1000,20,2,'Payment for services');
-INSERT INTO transaction(amount, final_amount, fee, bank_only, currency_id, from_account_id, timestamp, to_account_id,transfer_id, description)
-VALUES (1000.0,1000.0,0.0,false,1,100,EXTRACT(EPOCH FROM CURRENT_TIMESTAMP) * 1000,20,2,'Payment for services');
+INSERT INTO transaction(amount, final_amount, fee, bank_only, currency_id, from_account_id, timestamp, date, time, to_account_id,transfer_id, description)
+VALUES (1000.0,1000.0,0.0,false,1,100,EXTRACT(EPOCH FROM CURRENT_TIMESTAMP) * 1000, TO_CHAR(CURRENT_TIMESTAMP + INTERVAL '30 days', 'DD-MM-YYYY'), TO_CHAR(CURRENT_TIMESTAMP + INTERVAL '30 days', 'HH24:MI'), 20,2,'Payment for services');
+INSERT INTO transaction(amount, final_amount, fee, bank_only, currency_id, from_account_id, timestamp, date, time, to_account_id,transfer_id, description)
+VALUES (1000.0,1000.0,0.0,false,1,100,EXTRACT(EPOCH FROM CURRENT_TIMESTAMP) * 1000, TO_CHAR(CURRENT_TIMESTAMP + INTERVAL '30 days', 'DD-MM-YYYY'), TO_CHAR(CURRENT_TIMESTAMP + INTERVAL '30 days', 'HH24:MI'), 20,2,'Payment for services');
 
 -- Anastasija -> Jovan
 INSERT INTO transfer(amount, completed_at, created_at, from_account_id, from_currency_id, to_account_id, to_currency_id, adress, note, otp, payment_code, payment_description, payment_reference, receiver, status, type)
 VALUES (30000.0, EXTRACT(EPOCH FROM CURRENT_TIMESTAMP) * 1000*2, EXTRACT(EPOCH FROM CURRENT_TIMESTAMP) * 1000, 11, 1, 100, 1, 'Milana Mijalkovica 1', 'Payment for shopping', '233', '234', 'Payment for shopping', '95', null, 'COMPLETED', 'INTERNAL');
 
-INSERT INTO transaction(amount, final_amount, fee, bank_only, currency_id, from_account_id, timestamp, to_account_id,transfer_id, description)
-VALUES (30000.0,30000.0,0.0,false,1,11,EXTRACT(EPOCH FROM CURRENT_TIMESTAMP) * 1000,100,3,'Payment for shopping');
-INSERT INTO transaction(amount, final_amount, fee, bank_only, currency_id, from_account_id, timestamp, to_account_id,transfer_id, description)
-VALUES (1000.0,1000.0,0.0,false,1,11,EXTRACT(EPOCH FROM CURRENT_TIMESTAMP) * 1000,100,3,'Payment for shopping');
+INSERT INTO transaction(amount, final_amount, fee, bank_only, currency_id, from_account_id, timestamp, date, time, to_account_id,transfer_id, description)
+VALUES (30000.0,30000.0,0.0,false,1,11,EXTRACT(EPOCH FROM CURRENT_TIMESTAMP) * 1000, TO_CHAR(CURRENT_TIMESTAMP + INTERVAL '30 days', 'DD-MM-YYYY'), TO_CHAR(CURRENT_TIMESTAMP + INTERVAL '30 days', 'HH24:MI'), 100,3,'Payment for shopping');
+INSERT INTO transaction(amount, final_amount, fee, bank_only, currency_id, from_account_id, timestamp, date, time, to_account_id,transfer_id, description)
+VALUES (1000.0,1000.0,0.0,false,1,11,EXTRACT(EPOCH FROM CURRENT_TIMESTAMP) * 1000, TO_CHAR(CURRENT_TIMESTAMP + INTERVAL '30 days', 'DD-MM-YYYY'), TO_CHAR(CURRENT_TIMESTAMP + INTERVAL '30 days', 'HH24:MI'), 100,3,'Payment for shopping');
 
