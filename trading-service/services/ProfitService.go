@@ -107,7 +107,7 @@ ORDER BY m;`).Rows()
 		return nil, fmt.Errorf("Neuspelo izvrsavanje upita: %w", err)
 	}
 
-	var responses []dto.MonthlyProfitResponse
+	responses := make([]dto.MonthlyProfitResponse, 0)
 
 	for rows.Next() {
 		var yearMonth string
