@@ -327,6 +327,26 @@ INSERT INTO account (account_number, balance, company_id, daily_limit, monthly_l
                      status, type, subtype)
 VALUES ('111000100000000321', 1000.0, NULL, 200.0, 10000.0, 0.0, 0.0, 'USD',
         1630454400000, 2025030500000, 1, 0.0, 0.0, 1, 'ACTIVE', 'FOREIGN_CURRENCY', 'STANDARD');
+
+INSERT INTO account (account_number, balance, company_id, daily_limit, monthly_limit,
+                     daily_spent, monthly_spent, currency_type, expiration_date, created_date,
+                     employeeid, monthly_maintenance_fee, reserved_balance, ownerid,
+                     status, type, subtype)
+VALUES ('111000100000000323', 1000.0, NULL, 200.0, 10000.0, 0.0, 0.0, 'USD',
+        1630454400000, 2025030500000, 1, 0.0, 0.0, 4, 'ACTIVE', 'FOREIGN_CURRENCY', 'STANDARD');
+INSERT INTO account (account_number, balance, company_id, daily_limit, monthly_limit,
+                     daily_spent, monthly_spent, currency_type, expiration_date, created_date,
+                     employeeid, monthly_maintenance_fee, reserved_balance, ownerid,
+                     status, type, subtype)
+VALUES ('111000100000000324', 1000.0, NULL, 200.0, 10000.0, 0.0, 0.0, 'USD',
+        1630454400000, 2025030500000, 1, 0.0, 0.0, 5, 'ACTIVE', 'FOREIGN_CURRENCY', 'STANDARD');
+INSERT INTO account (account_number, balance, company_id, daily_limit, monthly_limit,
+                     daily_spent, monthly_spent, currency_type, expiration_date, created_date,
+                     employeeid, monthly_maintenance_fee, reserved_balance, ownerid,
+                     status, type, subtype)
+VALUES ('111000100000000325', 1000.0, NULL, 200.0, 10000.0, 0.0, 0.0, 'USD',
+        1630454400000, 2025030500000, 1, 0.0, 0.0, 6, 'ACTIVE', 'FOREIGN_CURRENCY', 'STANDARD');
+
 -- ID: 1
 INSERT INTO card(ACTIVE, BLOCKED, CARD_LIMIT, ACCOUNT_ID, AUTHORIZED_PERSON_ID, CREATED_AT, EXPIRATION_DATE, CARD_BRAND, CARD_CVV, CARD_NAME, CARD_NUMBER, CARD_TYPE)
 VALUES (TRUE,FALSE,1000.0,1,NULL,EXTRACT(EPOCH FROM CURRENT_TIMESTAMP) * 1000,EXTRACT(EPOCH FROM CURRENT_TIMESTAMP) * 1000*365,'VISA',180,'BANKA',4098745621983456,'DEBIT');
