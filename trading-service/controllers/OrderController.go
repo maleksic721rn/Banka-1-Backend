@@ -255,10 +255,26 @@ func (oc *OrderController) CreateOrder(c *fiber.Ctx) error {
 	var approvedBy *uint = nil
 
 	if deptRaw := c.Locals("department"); deptRaw != nil {
-		if department, ok := deptRaw.(string); ok && department == "SUPERVISOR" {
-			status = "approved"
+		if department, ok := deptRaw.(string); ok {
 			id := uint(userId)
 			approvedBy = &id
+
+			switch department {
+			case "SUPERVISOR":
+				status = "approved"
+			case "AGENT":
+				var actuary types.Actuary
+				if err := db.DB.Where("user_id = ?", orderRequest.UserID).First(&actuary).Error; err == nil {
+					estimatedUsage := float64(orderRequest.Quantity) * security.LastPrice * 0.3 * 1.1
+					if actuary.UsedLimit+estimatedUsage <= actuary.LimitAmount {
+						status = "approved"
+					} else {
+						status = "pending"
+					}
+				} else {
+					status = "pending"
+				}
+			}
 		}
 	}
 
@@ -658,7 +674,8 @@ func (oc *OrderController) GetBankProfit(c *fiber.Ctx) error {
 //	@Produce		json
 //	@Param			OrderTransactionInitiationDTO	body	dto.OrderTransactionInitiationDTO	true	"Podaci o inicijalizaciji transakcije"
 //	@Success		200	{string}	string	"Uspešno inicirana transakcija"
-//	@Failure		400	{object}	types.Response	"Nevalidan zahtev"
+//	@Failure		400	{object}	types.Response	"Nevalidan zahtev ili greška prilikom iniciranja transakcije"
+//	@Failure		403	{object}	types.Response	"Nedovoljna sredstva ili zabranjena operacija"
 //	@Failure		500	{object}	types.Response	"Interna greška servera"
 //	@Router			/orders/initiate-transaction [post]
 func (oc *OrderController) InitiateOrderTransaction(c *fiber.Ctx) error {
@@ -680,10 +697,18 @@ func (oc *OrderController) InitiateOrderTransaction(c *fiber.Ctx) error {
 	url := os.Getenv("BANKING_SERVICE") + "/order/initiate/" + token
 
 	agent := fiber.Post(url)
-	statusCode, _, errs := agent.Bytes()
+	statusCode, body, errs := agent.Bytes()
 
-	if len(errs) != 0 || statusCode != 200 {
+	if len(errs) != 0 {
 		return fiber.ErrInternalServerError
+	}
+
+	if statusCode >= 400 {
+		errorMessage := string(body) // Ovde uzimamo tekstualni error iz banking servisa
+		return c.Status(statusCode).JSON(types.Response{
+			Success: false,
+			Error:   errorMessage,
+		})
 	}
 
 	return c.SendStatus(fiber.StatusOK)
