@@ -1,5 +1,6 @@
 package com.banka1.banking.services;
 
+import com.banka1.banking.config.InterbankConfig;
 import com.banka1.banking.dto.CustomerDTO;
 import com.banka1.banking.dto.InternalTransferDTO;
 import com.banka1.banking.dto.MoneyTransferDTO;
@@ -58,9 +59,10 @@ public class TransferService {
     private final ReceiverService receiverService;
 
     private final InterbankService interbankService;
+    private final InterbankConfig config;
 
 
-    public TransferService(AccountRepository accountRepository, TransferRepository transferRepository, TransactionRepository transactionRepository, CurrencyRepository currencyRepository, JmsTemplate jmsTemplate, MessageHelper messageHelper, @Value("${destination.email}") String destinationEmail, UserServiceCustomer userServiceCustomer, ExchangeService exchangeService, OtpTokenService otpTokenService, BankAccountUtils bankAccountUtils, ReceiverService receiverService, InterbankService interbankService) {
+    public TransferService(AccountRepository accountRepository, TransferRepository transferRepository, TransactionRepository transactionRepository, CurrencyRepository currencyRepository, JmsTemplate jmsTemplate, MessageHelper messageHelper, @Value("${destination.email}") String destinationEmail, UserServiceCustomer userServiceCustomer, ExchangeService exchangeService, OtpTokenService otpTokenService, BankAccountUtils bankAccountUtils, ReceiverService receiverService, InterbankService interbankService, InterbankConfig config) {
         this.accountRepository = accountRepository;
         this.transferRepository = transferRepository;
         this.transactionRepository = transactionRepository;
@@ -74,6 +76,7 @@ public class TransferService {
         this.bankAccountUtils = bankAccountUtils;
         this.receiverService = receiverService;
         this.interbankService = interbankService;
+        this.config = config;
     }
 
     @Transactional(isolation = Isolation.SERIALIZABLE)
@@ -636,6 +639,14 @@ public class TransferService {
             debitTransaction.setTimestamp(System.currentTimeMillis());
             debitTransaction.setDescription("Debit transaction for transfer " + transferId);
             debitTransaction.setTransfer(transfer);
+            LocalDateTime now = LocalDateTime.now();
+            String date = now.toLocalDate().toString();
+            date = date.substring(8, 10) + "-" + date.substring(5, 7) + "-" + date.substring(0, 4);
+            debitTransaction.setDate(date);
+
+            String time = now.toLocalTime().toString();
+            time = time.substring(0, 5);
+            debitTransaction.setTime(time);
 
             transactionRepository.save(debitTransaction);
 
@@ -759,7 +770,7 @@ public class TransferService {
         Optional<Account> toAccountOtp = accountRepository.findByAccountNumber(transferDTO.getRecipientAccount());
 
         // receiver account is null and should not be checked if it is not in our bank
-        if(fromAccountOtp.isEmpty() || (toAccountOtp.isEmpty() && transferDTO.getRecipientAccount().startsWith("111"))){
+        if(fromAccountOtp.isEmpty() || (toAccountOtp.isEmpty() && transferDTO.getRecipientAccount().startsWith(config.getRoutingNumber()))){
             return false;
         }
 
@@ -936,8 +947,8 @@ public class TransferService {
         System.out.println("Creating money transfer");
         System.out.println("From account: " + moneyTransferDTO.getFromAccountNumber());
         System.out.println("To account: " + moneyTransferDTO.getRecipientAccount());
-        // if moneyTransferDTO.getRecipientAccount() starts with 444 then it payment to the other bank
-        if (moneyTransferDTO.getRecipientAccount().startsWith("444")) {
+        System.out.println(config.getForeignBankRoutingNumber());
+        if (moneyTransferDTO.getRecipientAccount().startsWith(config.getForeignBankRoutingNumber())) {
             System.out.println("Creating foreign bank transfer");
             return createForeignBankTransfer(moneyTransferDTO);
         }
@@ -1096,6 +1107,15 @@ public class TransferService {
             transaction.setTimestamp(System.currentTimeMillis());
             transaction.setDescription("Foreign bank transfer");
             transaction.setTransfer(transfer);
+
+            LocalDateTime now = LocalDateTime.now();
+            String date = now.toLocalDate().toString();
+            date = date.substring(8, 10) + "-" + date.substring(5, 7) + "-" + date.substring(0, 4);
+            transaction.setDate(date);
+            String time = now.toLocalTime().toString();
+            time = time.substring(0, 5);
+            transaction.setTime(time);
+
             transactionRepository.save(transaction);
 
             Account fromAccount = transfer.getFromAccountId();
@@ -1168,6 +1188,17 @@ public class TransferService {
         transaction.setTimestamp(System.currentTimeMillis());
         transaction.setDescription("Received transfer from foreign bank");
         transaction.setTransfer(transfer);
+
+        LocalDateTime now = LocalDateTime.now();
+        String date = now.toLocalDate().toString();
+        date = date.substring(8, 10) + "-" + date.substring(5, 7) + "-" + date.substring(0, 4);
+        transaction.setDate(date);
+        String time = now.toLocalTime().toString();
+        time = time.substring(0, 5);
+        transaction.setTime(time);
+
+
+
         transactionRepository.save(transaction);
 
         return transfer;
