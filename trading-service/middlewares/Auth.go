@@ -91,7 +91,7 @@ func RequirePermission(requiredPermission string) fiber.Handler {
 
 func RequireInterbankApiKey(c *fiber.Ctx) error {
 	key := c.Get("X-Api-Key")
-	expected := os.Getenv("INTERBANK_INCOMING_API_KEY")
+	expected := os.Getenv("BANK1_SECURITY")
 	if key == "" || key != expected {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"success": false,
