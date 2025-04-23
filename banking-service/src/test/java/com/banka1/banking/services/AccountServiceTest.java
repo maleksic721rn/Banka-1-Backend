@@ -1,5 +1,6 @@
 package com.banka1.banking.services;
 
+import com.banka1.banking.config.InterbankConfig;
 import com.banka1.banking.dto.CreateCompanyDTO;
 import com.banka1.banking.dto.CustomerDTO;
 import com.banka1.banking.dto.NotificationDTO;
@@ -55,6 +56,8 @@ public class AccountServiceTest {
     private MessageHelper messageHelper;
     @Mock
     private TextMessage mockTextMessage;
+    @Mock
+    private InterbankConfig interbankConfig;
 
     @Test
     public void testGetTransactionsForAccount_ReturnsMappedTransactions() {

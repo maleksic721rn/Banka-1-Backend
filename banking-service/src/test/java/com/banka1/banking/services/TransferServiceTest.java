@@ -1,5 +1,6 @@
 package com.banka1.banking.services;
 
+import com.banka1.banking.config.InterbankConfig;
 import com.banka1.banking.dto.CustomerDTO;
 import com.banka1.banking.dto.InternalTransferDTO;
 import com.banka1.banking.dto.MoneyTransferDTO;
@@ -69,6 +70,9 @@ public class TransferServiceTest {
 
     @Mock
     private LoanService loanService;
+
+    @Mock
+    private InterbankConfig interbankConfig;
 
     @InjectMocks
     private TransferService transferService;
@@ -227,6 +231,8 @@ public class TransferServiceTest {
         exchangeTransfer.setType(TransferType.EXCHANGE);
         exchangeTransfer.setFromCurrency(eurCurrency);
         exchangeTransfer.setToCurrency(usdCurrency);
+
+        when(interbankConfig.getForeignBankRoutingNumber()).thenReturn("444");
     }
 
     @Test

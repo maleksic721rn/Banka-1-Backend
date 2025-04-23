@@ -1,5 +1,6 @@
 package com.banka1.banking.services;
 
+import com.banka1.banking.config.InterbankConfig;
 import com.banka1.banking.dto.*;
 import com.banka1.banking.dto.request.CreateAccountDTO;
 import com.banka1.banking.dto.request.UpdateAccountDTO;
@@ -34,8 +35,9 @@ public class AccountService {
     private final BankAccountUtils bankAccountUtils;
     private final TransactionRepository transactionRepository;
     private final CompanyService companyService;
+    private final InterbankConfig config;
 
-    public AccountService(AccountRepository accountRepository, JmsTemplate jmsTemplate, MessageHelper messageHelper, ModelMapper modelMapper, @Value("${destination.email}") String destinationEmail, UserServiceCustomer userServiceCustomer, CardService cardService, BankAccountUtils bankAccountUtils,TransactionRepository transactionRepository, CompanyService companyService) {
+    public AccountService(AccountRepository accountRepository, JmsTemplate jmsTemplate, MessageHelper messageHelper, ModelMapper modelMapper, @Value("${destination.email}") String destinationEmail, UserServiceCustomer userServiceCustomer, CardService cardService, BankAccountUtils bankAccountUtils,TransactionRepository transactionRepository, CompanyService companyService, InterbankConfig config) {
         this.accountRepository = accountRepository;
         this.jmsTemplate = jmsTemplate;
         this.messageHelper = messageHelper;
@@ -46,6 +48,7 @@ public class AccountService {
         this.bankAccountUtils = bankAccountUtils;
         this.transactionRepository = transactionRepository;
         this.companyService = companyService;
+        this.config = config;
     }
 
     public Account createAccount(CreateAccountDTO createAccountDTO, Long employeeId) {
@@ -114,7 +117,7 @@ public class AccountService {
         account.setMonthlySpent(0.0);
         account.setMonthlyMaintenanceFee(0.0);
 
-        account.setAccountNumber(generateAccountNumber(account));
+        account.setAccountNumber(generateAccountNumber(account, config.getRoutingNumber()));
         account.setCurrencyType(createAccountDTO.getCurrency());
 
         account.setEmployeeID(employeeId);
@@ -241,9 +244,9 @@ public class AccountService {
     }
 
 
-    public static String generateAccountNumber(Account account){
+    public static String generateAccountNumber(Account account, String routingNumber) {
         StringBuilder sb = new StringBuilder();
-        sb.append("111");
+        sb.append(routingNumber);
         sb.append("0001");
 
         Random random = new Random();

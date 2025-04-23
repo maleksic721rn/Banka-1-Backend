@@ -1,5 +1,6 @@
 package com.banka1.banking.service.accountService;
 
+import com.banka1.banking.config.InterbankConfig;
 import com.banka1.banking.dto.CreateCompanyDTO;
 import com.banka1.banking.dto.CustomerDTO;
 import com.banka1.banking.dto.request.CreateAccountDTO;
@@ -48,6 +49,9 @@ public class CreateAccountTest {
 
     @Mock
     CompanyService companyService;
+
+    @Mock
+    private InterbankConfig interbankConfig;
 
     /*
     {
