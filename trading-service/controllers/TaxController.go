@@ -1,9 +1,10 @@
 package controllers
 
 import (
-	"github.com/go-co-op/gocron"
 	"log"
 	"time"
+
+	"github.com/go-co-op/gocron"
 
 	"banka1.com/db"
 	"banka1.com/middlewares"
@@ -78,7 +79,7 @@ func (tc *TaxController) RunTax(c *fiber.Ctx) error {
 		SELECT id, buyer_id, seller_id, security_id, quantity, price_per_unit, total_price, created_at
 		FROM transactions
 		WHERE total_price > 0
-		  AND substr(created_at, 1, 7) = ?
+		  AND TO_CHAR(created_at, 'YYYY-MM') = ?
 		  AND tax_paid = FALSE
 	`, yearMonth).Scan(&transactions).Error
 

@@ -23,27 +23,29 @@ func LoadOrders() {
 	db.DB.Where("ticker = ?", "NVDA").First(&nvdaSecurity)
 
 	order1 := types.Order{
-		UserID:       3,
-		AccountID:    1,
-		SecurityID:   msftSecurity.ID,
-		OrderType:    "Market",
-		Quantity:     10,
-		ContractSize: 1,
-		Direction:    "Buy",
-		Status:       "Approved",
-		IsDone:       true,
+		UserID:         3,
+		AccountID:      16,
+		SecurityID:     msftSecurity.ID,
+		OrderType:      "MARKET",
+		Quantity:       2,
+		RemainingParts: ptr(2),
+		ContractSize:   1,
+		Direction:      "buy",
+		Status:         "approved",
+		IsDone:         false,
 	}
 
 	order2 := types.Order{
-		UserID:       3,
-		AccountID:    1,
-		SecurityID:   aaplSecurity.ID,
-		OrderType:    "Market",
-		Quantity:     5,
-		ContractSize: 1,
-		Direction:    "Buy",
-		Status:       "Approved",
-		IsDone:       true,
+		UserID:         3,
+		AccountID:      16,
+		SecurityID:     aaplSecurity.ID,
+		OrderType:      "MARKET",
+		Quantity:       1,
+		RemainingParts: ptr(1),
+		ContractSize:   1,
+		Direction:      "buy",
+		Status:         "approved",
+		IsDone:         false,
 	}
 
 	if err := db.DB.FirstOrCreate(&order1, types.Order{
@@ -170,7 +172,7 @@ func CreateInitialSellOrdersFromBank() {
 
 	var bankAccountId uint
 	for _, acc := range sellerAccounts {
-		if acc.CurrencyType == "RSD" {
+		if acc.CurrencyType == "USD" {
 			bankAccountId = uint(acc.ID)
 			break
 		}

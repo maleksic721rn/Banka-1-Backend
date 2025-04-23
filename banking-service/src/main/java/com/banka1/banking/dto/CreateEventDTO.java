@@ -1,5 +1,6 @@
 package com.banka1.banking.dto;
 
+import com.banka1.banking.dto.interbank.InterbankMessageDTO;
 import com.banka1.banking.dto.interbank.InterbankMessageType;
 import com.banka1.banking.models.helper.IdempotenceKey;
 import com.banka1.banking.models.interbank.EventDirection;
@@ -12,7 +13,7 @@ import lombok.RequiredArgsConstructor;
 @AllArgsConstructor
 public class CreateEventDTO {
 
-    private InterbankMessageType messageType;
+    private InterbankMessageDTO<?> message;
 
     private String payload;
 

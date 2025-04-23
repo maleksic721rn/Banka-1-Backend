@@ -25,6 +25,7 @@ public class InterbankInterceptor implements HandlerInterceptor {
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws IOException {
         if (request.getRequestURI().contains("/interbank") && "POST".equalsIgnoreCase(request.getMethod())) {
+            System.out.println("Received webhook request");
             String rawPayload = request.getReader().lines().collect(Collectors.joining(System.lineSeparator()));
 
             Event event;
@@ -44,7 +45,6 @@ public class InterbankInterceptor implements HandlerInterceptor {
                 response.getWriter().write("{\"success\": false, \"error\": \"" + e.getMessage().replace("\"", "'") + "\"}");
                 return false;
             }
-
 
             request.setAttribute("event", event);
             request.setAttribute("startTime", System.currentTimeMillis());

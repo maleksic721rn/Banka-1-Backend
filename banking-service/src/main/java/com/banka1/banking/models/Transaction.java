@@ -17,11 +17,11 @@ public class Transaction {
     private Long id;
 
     @ManyToOne
-    @JoinColumn(name = "from_account_id", nullable = false)
+    @JoinColumn(name = "from_account_id", nullable = true)
     private Account fromAccountId;
 
     @ManyToOne
-    @JoinColumn(name = "to_account_id", nullable = false)
+    @JoinColumn(name = "to_account_id", nullable = true)
     private Account toAccountId;
 
     @Column(nullable = false)
@@ -45,11 +45,11 @@ public class Transaction {
 
     @Column(nullable = false)
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "dd/MM/yyyy")
-    private LocalDate date;
+    private String date;
 
     @Column(nullable = false)
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "HH:mm")
-    private LocalTime time;
+    private String time;
 
     @Column()
     private String description;

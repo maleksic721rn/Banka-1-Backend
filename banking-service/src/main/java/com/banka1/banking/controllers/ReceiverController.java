@@ -75,15 +75,15 @@ public class ReceiverController {
                             examples = @ExampleObject(value = "{ \"success\": false, \"error\": \"Nema sačuvanih primaoca za ovaj nalog.\" }"))
             )
     })
-    @GetMapping("/{customerId}")
+    @GetMapping("/{receiverId}")
     @Authorization
     public ResponseEntity<?> getReceivers(
             @Parameter(description = "ID korisnika", required = true, example = "2")
-            @PathVariable Long customerId) {
-        if (!receiverService.accountExists(customerId)) {
+            @PathVariable Long receiverId) {
+        if (!receiverService.accountExists(receiverId)) {
             return ResponseTemplate.create(ResponseEntity.status(HttpStatus.NOT_FOUND), false, null, "Nalog ne postoji.");
         }
-        List<Receiver> receivers = receiverService.getReceiversByCustomerId(customerId);
+        List<Receiver> receivers = receiverService.getReceiversByCustomerId(receiverId);
         return ResponseTemplate.create(ResponseEntity.status(HttpStatus.OK), true, Map.of("receivers", receivers), null);
     }
 
@@ -134,11 +134,11 @@ public class ReceiverController {
                             examples = @ExampleObject(value = "{ \"success\": false, \"error\": \"Primalac nije pronađen.\" }"))
             )
     })
-    @DeleteMapping("/{id}")
+    @DeleteMapping("/{receiverId}")
     @ReceiverAuthorization
     public ResponseEntity<?> deleteReceiver(
             @Parameter(description = "ID primaoca", required = true, example = "1")
-            @PathVariable("id") Long receiverId) {
+            @PathVariable("receiverId") Long receiverId) {
         receiverService.deleteReceiver(receiverId);
         return ResponseTemplate.create(ResponseEntity.status(HttpStatus.OK), true, Map.of("message", "Primalac uspešno obrisan"), null);
     }
