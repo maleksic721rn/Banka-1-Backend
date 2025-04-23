@@ -920,6 +920,7 @@ public class TransferService {
         System.out.println("Creating money transfer");
         System.out.println("From account: " + moneyTransferDTO.getFromAccountNumber());
         System.out.println("To account: " + moneyTransferDTO.getRecipientAccount());
+        System.out.println(config.getForeignBankRoutingNumber());
         if (moneyTransferDTO.getRecipientAccount().startsWith(config.getForeignBankRoutingNumber())) {
             System.out.println("Creating foreign bank transfer");
             return createForeignBankTransfer(moneyTransferDTO);
