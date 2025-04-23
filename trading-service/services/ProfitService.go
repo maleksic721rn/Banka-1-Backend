@@ -140,3 +140,29 @@ ORDER BY m;`).Rows()
 
 	return &responses, nil
 }
+
+func CalculateBankProfitTotal() (*dto.TotalProfitResponse, error) {
+	var actuaryProfit float64
+	var fees float64
+
+	err := db.DB.Raw(`
+SELECT
+COALESCE(SUM(
+CASE WHEN seller_id IN (SELECT user_id FROM actuary) THEN total_price ELSE 0 END
+-
+CASE WHEN buyer_id IN (SELECT user_id FROM actuary) THEN total_price ELSE 0 END)
+, 0),
+COALESCE(SUM(fee), 0)
+FROM transactions;`).Row().Scan(&actuaryProfit, &fees)
+
+	if err != nil {
+		return nil, fmt.Errorf("Neuspelo izvrsavanje upita: %w", err)
+	}
+
+	return &dto.TotalProfitResponse{
+		ActuaryProfit: actuaryProfit,
+		Fees:          fees,
+		Total:         actuaryProfit + fees,
+	}, nil
+
+}
