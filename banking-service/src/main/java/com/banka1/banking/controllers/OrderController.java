@@ -67,7 +67,10 @@ public class OrderController {
             orderService.processOrderTransaction(dto);
 
             return ResponseEntity.ok().build();
-        } catch (Exception e) {
+        }catch (IllegalArgumentException e) {
+            // Npr. insufficient funds iz processOrderTransaction
+            return ResponseTemplate.create(ResponseEntity.status(HttpStatus.FORBIDDEN), false, null, "Nedovoljna sredstva za iniciranje transakcije");
+        }catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Nevalidni podaci u tokenu za initiate transakciju");
         }

@@ -126,11 +126,11 @@ INSERT INTO account (account_number, balance, company_id, daily_limit, monthly_l
 VALUES ('111000100220000120', 1000.0, NULL, 100.0, 1000.0, 0.0, 0.0, 'EUR',
         1630454400000, 2025030500000, 1, 0.0, 0.0, 103, 'ACTIVE', 'FOREIGN_CURRENCY', 'PENSION');
 
-INSERT INTO account (account_number, balance, company_id, daily_limit, monthly_limit,
+INSERT INTO account (id, account_number, balance, company_id, daily_limit, monthly_limit,
                      daily_spent, monthly_spent, currency_type, expiration_date, created_date,
                      employeeid, monthly_maintenance_fee, reserved_balance, ownerid,
                      status, type, subtype)
-VALUES ('111000100000000320', 1000.0, NULL, 200.0, 10000.0, 0.0, 0.0, 'USD',
+VALUES (16, '111000100000000320', 1000.0, NULL, 2000.0, 10000.0, 0.0, 0.0, 'USD',
         1630454400000, 2025030500000, 1, 0.0, 0.0, 103, 'ACTIVE', 'FOREIGN_CURRENCY', 'STANDARD');
 
 -- User accounts - Nemanja (ID: 4)

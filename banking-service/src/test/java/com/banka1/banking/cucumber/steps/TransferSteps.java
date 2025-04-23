@@ -77,15 +77,15 @@ public class TransferSteps {
     @When("customer fills out the transfer form")
     public void customerFillsOutTheTransferForm() {
         internalTransferData = new HashMap<>();
-        internalTransferData.put("fromAccountId", 106);
-        internalTransferData.put("toAccountId", 107);
+        internalTransferData.put("fromAccountId", 105);
+        internalTransferData.put("toAccountId", 106);
         internalTransferData.put("amount", 1000.0);
     }
 
     @When("customer does not fill out the transfer form")
     public void customerDoesNotFillOutTheTransferForm() {
         internalTransferData = new HashMap<>();
-        internalTransferData.put("fromAccountId", 106);
+        internalTransferData.put("fromAccountId", 105);
     }
 
     @When("customer fills out payment form")

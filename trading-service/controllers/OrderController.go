@@ -256,10 +256,26 @@ func (oc *OrderController) CreateOrder(c *fiber.Ctx) error {
 	var approvedBy *uint = nil
 
 	if deptRaw := c.Locals("department"); deptRaw != nil {
-		if department, ok := deptRaw.(string); ok && department == "SUPERVISOR" {
-			status = "approved"
+		if department, ok := deptRaw.(string); ok {
 			id := uint(userId)
 			approvedBy = &id
+
+			switch department {
+			case "SUPERVISOR":
+				status = "approved"
+			case "AGENT":
+				var actuary types.Actuary
+				if err := db.DB.Where("user_id = ?", orderRequest.UserID).First(&actuary).Error; err == nil {
+					estimatedUsage := float64(orderRequest.Quantity) * security.LastPrice * 0.3 * 1.1
+					if actuary.UsedLimit+estimatedUsage <= actuary.LimitAmount {
+						status = "approved"
+					} else {
+						status = "pending"
+					}
+				} else {
+					status = "pending"
+				}
+			}
 		}
 	}
 
@@ -627,7 +643,7 @@ func (oc *OrderController) GetRealizedProfit(c *fiber.Ctx) error {
 
 // GetBankProfit godoc
 //
-//	@Summary		Obračun profita banke
+//	@Summary		Obračun profita banke po mesecu
 //	@Description	Računa ukupni ostvareni profit banke po mesecu.
 //	@Tags			Profit
 //	@Produce		json
@@ -650,6 +666,31 @@ func (oc *OrderController) GetBankProfit(c *fiber.Ctx) error {
 	})
 }
 
+// GetBankProfit godoc
+//
+//	@Summary		Obračun profita banke
+//	@Description	Računa ukupni ostvareni profit banke.
+//	@Tags			Profit
+//	@Produce		json
+//	@Param			id	path	int	true	"ID korisnika za kog se računa profit"
+//	@Success		200	{object}	types.Response{data=dto.TotalProfitResponse}	"Uspešno vraćen obračun profita"
+//	@Failure		500	{object}	types.Response										"Greška prilikom obračuna profita"
+//	@Router			/profit/bank/total [get]
+func (oc *OrderController) GetTotalBankProfit(c *fiber.Ctx) error {
+	profit, err := services.CalculateBankProfitTotal()
+	if err != nil {
+		return c.Status(500).JSON(types.Response{
+			Success: false,
+			Error:   "Greška prilikom obračuna profita: " + err.Error(),
+		})
+	}
+
+	return c.JSON(types.Response{
+		Success: true,
+		Data:    profit,
+	})
+}
+
 // InitiateOrderTransaction godoc
 //
 //	@Summary		Iniciranje transakcije za nalog
@@ -659,7 +700,8 @@ func (oc *OrderController) GetBankProfit(c *fiber.Ctx) error {
 //	@Produce		json
 //	@Param			OrderTransactionInitiationDTO	body	dto.OrderTransactionInitiationDTO	true	"Podaci o inicijalizaciji transakcije"
 //	@Success		200	{string}	string	"Uspešno inicirana transakcija"
-//	@Failure		400	{object}	types.Response	"Nevalidan zahtev"
+//	@Failure		400	{object}	types.Response	"Nevalidan zahtev ili greška prilikom iniciranja transakcije"
+//	@Failure		403	{object}	types.Response	"Nedovoljna sredstva ili zabranjena operacija"
 //	@Failure		500	{object}	types.Response	"Interna greška servera"
 //	@Router			/orders/initiate-transaction [post]
 func (oc *OrderController) InitiateOrderTransaction(c *fiber.Ctx) error {
@@ -679,10 +721,18 @@ func (oc *OrderController) InitiateOrderTransaction(c *fiber.Ctx) error {
 	agent.Request().SetRequestURI(url)
 	agent.Request().Header.SetMethod(http.MethodPost)
 	agent.Request().Header.Add("Authorization", authHeader)
-	statusCode, _, errs := agent.Bytes()
+	statusCode, body, errs := agent.Bytes()
 
-	if len(errs) != 0 || statusCode != 200 {
+	if len(errs) != 0 {
 		return fiber.ErrInternalServerError
+	}
+
+	if statusCode >= 400 {
+		errorMessage := string(body) // Ovde uzimamo tekstualni error iz banking servisa
+		return c.Status(statusCode).JSON(types.Response{
+			Success: false,
+			Error:   errorMessage,
+		})
 	}
 
 	return c.SendStatus(fiber.StatusOK)
@@ -698,6 +748,7 @@ func InitOrderRoutes(app *fiber.App) {
 	app.Post("/orders/:id/decline", middlewares.Auth, middlewares.DepartmentCheck("SUPERVISOR"), orderController.DeclineOrder)
 	app.Post("/orders/:id/approve", middlewares.Auth, middlewares.DepartmentCheck("SUPERVISOR"), orderController.ApproveOrder)
 	app.Post("/orders/:id/cancel", middlewares.Auth, orderController.CancelOrder)
+	app.Get("/profit/bank/total", orderController.GetTotalBankProfit)
 	app.Get("/profit/bank", orderController.GetBankProfit)
 	app.Get("/profit/:id", orderController.GetRealizedProfit)
 	app.Post("/orders/initiate-transaction", orderController.InitiateOrderTransaction)
