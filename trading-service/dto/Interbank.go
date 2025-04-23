@@ -48,3 +48,20 @@ type OtcNegotiation struct {
 	LastModifiedBy ForeignBankId    `json:"lastModifiedBy"`
 	IsOngoing      bool             `json:"isOngoing"`
 }
+
+type OptionContractDTO struct {
+	ID                  uint    `json:"id"`
+	PortfolioID         *uint   `json:"portfolioId,omitempty"`
+	Ticker              string  `json:"ticker"`
+	SecurityName        *string `json:"securityName,omitempty"`
+	StrikePrice         float64 `json:"strikePrice"`
+	Premium             float64 `json:"premium"`
+	Quantity            int     `json:"quantity"`
+	SettlementDate      string  `json:"settlementDate"`
+	IsExercised         bool    `json:"isExercised"`
+	BuyerID             *uint   `json:"buyerId,omitempty"`
+	SellerID            *uint   `json:"sellerId,omitempty"`
+	RemoteRoutingNumber *int    `json:"remoteRoutingNumber,omitempty"`
+	RemoteBuyerID       *string `json:"remoteBuyerId,omitempty"`
+	RemoteSellerID      *string `json:"remoteSellerId,omitempty"`
+}

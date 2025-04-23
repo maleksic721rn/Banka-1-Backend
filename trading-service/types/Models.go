@@ -111,24 +111,24 @@ type Portfolio struct {
 }
 
 type OptionContract struct {
-	ID           uint      `gorm:"primaryKey"`
-	OTCTradeID   uint      `gorm:"not null"`
-	BuyerID      uint      `gorm:"not null"`
-	SellerID     uint      `gorm:"not null"`
-	PortfolioID  uint      `gorm:"not null"`
-	SecurityID   uint      `gorm:"not null"`
-	Quantity     int       `gorm:"not null"`
-	StrikePrice  float64   `gorm:"not null"`
-	Premium      float64   `gorm:"not null"`
-	SettlementAt time.Time `gorm:"not null"`
-	Status       string    `gorm:"type:text;default:'active'"`
-	IsExercised  bool      `gorm:"default:false"`
-	CreatedAt    int64     `gorm:"autoCreateTime"`
-	ExercisedAt  *int64    `gorm:"default:null"`
-	UID          string    `gorm:"type:varchar(255);index"`
-	OTCTrade     OTCTrade  `gorm:"foreignKey:OTCTradeID" json:"otc_trade"`
-	Portfolio    Portfolio `gorm:"foreignKey:PortfolioID" json:"portfolio"`
-	// Security   Security  `gorm:"foreignKey:SecurityID"`
+	ID               uint       `gorm:"primaryKey" json:"id"`
+	OTCTradeID       uint       `gorm:"not null" json:"otcTradeId"`
+	RemoteContractID *string    `gorm:"type:varchar(255);index" json:"remoteContractId,omitempty"`
+	BuyerID          uint       `gorm:"not null" json:"buyerId"`
+	SellerID         uint       `gorm:"not null" json:"sellerId"`
+	PortfolioID      *uint      `gorm:"default:null" json:"portfolioId,omitempty"`
+	SecurityID       *uint      `gorm:"default:null" json:"securityId,omitempty"`
+	Quantity         int        `gorm:"not null" json:"quantity"`
+	StrikePrice      float64    `gorm:"not null" json:"strikePrice"`
+	Premium          float64    `gorm:"not null" json:"premium"`
+	UID              string     `gorm:"type:varchar(255);index"`
+	SettlementAt     time.Time  `gorm:"not null" json:"settlementAt"`
+	Status           string     `gorm:"type:text;default:'active'" json:"status"`
+	IsExercised      bool       `gorm:"default:false" json:"isExercised"`
+	CreatedAt        int64      `gorm:"autoCreateTime" json:"createdAt"`
+	ExercisedAt      *int64     `gorm:"default:null" json:"exercisedAt,omitempty"`
+	OTCTrade         OTCTrade   `gorm:"foreignKey:OTCTradeID" json:"otcTrade"`
+	Portfolio        *Portfolio `gorm:"foreignKey:PortfolioID" json:"portfolio,omitempty"`
 }
 
 type Tax struct {
