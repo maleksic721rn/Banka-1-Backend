@@ -242,6 +242,7 @@ public class SecurityConfig {
                         .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
                         .redirectUri("https://localhost/api/login/oauth2/code/idp")
                         .redirectUri("https://oauth.pstmn.io/v1/callback")
+                        .redirectUri("https://bank1.djues3.com/api/login/oauth2/code/idp")
                         .postLogoutRedirectUri("https://localhost")
                         .scope("openid")
                         .scope("email")

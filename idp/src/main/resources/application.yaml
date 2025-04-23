@@ -32,7 +32,6 @@ spring:
           oidc:
             logout-uri: /o/connect/logout
             client-registration-uri: /o/connect/register
-
 server:
   port: 9000
   servlet:
@@ -40,6 +39,9 @@ server:
       cookie:
         same-site: lax
   forward-headers-strategy: framework
+  tomcat:
+    remoteip:
+      protocol-header: x-forwarded-proto
 
 frontend:
   login:

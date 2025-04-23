@@ -50,29 +50,18 @@ services:
     networks:
       - proxy-net
     environment:
-      # Override service URIs
-      # User Service
-      - SPRING_CLOUD_GATEWAY_MVC_ROUTES_0_URI=http://host.docker.internal:8081
-      - SPRING_CLOUD_GATEWAY_MVC_ROUTES_0_PREDICATES_0=Path=/api/user/**
-      # Banking Service
-      - SPRING_CLOUD_GATEWAY_MVC_ROUTES_1_URI=http://host.docker.internal:8082
-      - SPRING_CLOUD_GATEWAY_MVC_ROUTES_1_PREDICATES_0=Path=/api/banking/**
-      # Trading Service
-      - SPRING_CLOUD_GATEWAY_MVC_ROUTES_2_URI=http://host.docker.internal:3000
-      - SPRING_CLOUD_GATEWAY_MVC_ROUTES_1_PREDICATES_0=Path=/api/trading/**
-
-      # Support Service
-      - SPRING_CLOUD_GATEWAY_MVC_ROUTES_3_URI=http://host.docker.internal:8000
-      - SPRING_CLOUD_GATEWAY_MVC_ROUTES_1_PREDICATES_0=Path=/api/support/**
-
-      # OAuth2 settings (unchanged but useful for copy pasta into k8s)
-      - SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_IDP_ISSUER-URI=https://idp.localhost
-      - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_IDP_CLIENT-ID=gateway-client
-      - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_IDP_CLIENT-SECRET=secrets
-      - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_IDP_REDIRECT-URI=https://localhost/api/login/oauth2/code/idp
+      - USER_SERVICE_URI=http://host.docker.internal:8081
+      - BANKING_SERVICE_URI=http://host.docker.internal:8082
+      - TRADING_SERVICE_URI=http://host.docker.internal:3000
+      - SUPPORT_SERVICE_URI=http://host.docker.internal:8000
+      - SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_IDP_ISSUERURI=https://idp.localhost
+      - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_IDP_CLIENTID=gateway-client
+      - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_IDP_CLIENTSECRET=secrets
+      - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_IDP_REDIRECTURI=https://localhost/api/login/oauth2/code/idp
+      - SPRING_DATA_REDIS_URL=redis://redis:6379
     extra_hosts:
       - "host.docker.internal:host-gateway"
-      - "idp.localhost:host-gateway" # make idp.localhost accessible
+      - "idp.localhost:host-gateway"
   idp:
     image : 'harbor.k8s.elab.rs/banka-1/idp:latest'
     ports:
@@ -87,6 +76,8 @@ services:
       - SPRING_DATASOURCE_PASSWORD=user_service_password
       - LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_WEB=INFO
       - LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_SECURITY=INFO
+      - SPRING_DATA_REDIS_URL=redis://redis:6379
+
 
   notification-service:
     image: 'harbor.k8s.elab.rs/banka-1/notification-service:latest'
@@ -287,6 +278,8 @@ services:
       - '6379:6379'
     healthcheck:
       test: [ "CMD", "redis-cli", "--raw", "incr", "ping" ]
+    networks:
+      - proxy-net
 
 networks:
   broker-net: null
