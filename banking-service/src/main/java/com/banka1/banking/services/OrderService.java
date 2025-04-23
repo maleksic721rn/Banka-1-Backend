@@ -18,6 +18,9 @@ import org.springframework.transaction.annotation.Transactional;
 import com.banka1.banking.repository.TransactionRepository;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.Objects;
 
 @Service
@@ -119,21 +122,22 @@ public class OrderService {
         System.out.println("Buyer Account found: " + buyer.getAccountNumber());
         System.out.println("Seller Account found: " + seller.getAccountNumber());
 
-        if (!buyer.getCurrencyType().equals(seller.getCurrencyType())) {
-            System.out.println("Greska: Currency mismatch!");
-            throw new IllegalArgumentException("Currency mismatch");
-        }
+        double buyerAmount = dto.getAmount();
+        double sellerAmount = dto.getAmount();
 
-        if (buyer.getBalance() < dto.getAmount()) {
-            System.out.println("Greska: Insufficient funds!");
+        System.out.println("Buyer current balance: " + buyer.getBalance());
+        System.out.println("Buyer required amount: " + buyerAmount);
+        if (buyer.getBalance() < buyerAmount) {
+            System.out.println("Greska: Insufficient funds kod buyer-a!");
             throw new IllegalArgumentException("Insufficient funds");
         }
 
         System.out.println("Pre transfera - Buyer balance: " + buyer.getBalance());
         System.out.println("Pre transfera - Seller balance: " + seller.getBalance());
 
-        buyer.setBalance(buyer.getBalance() - dto.getAmount());
-        seller.setBalance(seller.getBalance() + dto.getAmount());
+        // Skidanje i dodavanje
+        buyer.setBalance(buyer.getBalance() - buyerAmount);
+        seller.setBalance(seller.getBalance() + sellerAmount);
 
         accountRepository.save(buyer);
         accountRepository.save(seller);
@@ -141,6 +145,7 @@ public class OrderService {
         System.out.println("Posle transfera - Buyer balance: " + buyer.getBalance());
         System.out.println("Posle transfera - Seller balance: " + seller.getBalance());
 
+        // Kreiraj transfer
         MoneyTransferDTO moneyTransferDTO = new MoneyTransferDTO();
         moneyTransferDTO.setFromAccountNumber(buyer.getAccountNumber());
         moneyTransferDTO.setRecipientAccount(seller.getAccountNumber());
@@ -151,30 +156,36 @@ public class OrderService {
         moneyTransferDTO.setPayementReference("Auto");
         moneyTransferDTO.setPayementDescription("Transfer initiated via Orders");
 
-        System.out.println("Kreiram transfer entity...");
         Transfer transfer = transferService.createMoneyTransferEntity(buyer, seller, moneyTransferDTO);
         transfer.setStatus(TransferStatus.COMPLETED);
 
-        System.out.println("Transfer kreiran. ID: " + transfer.getId());
-
-        System.out.println("Kreiram transakciju...");
+        // Kreiraj transakciju
         Transaction transaction = new Transaction();
         transaction.setAmount(dto.getAmount());
         transaction.setFinalAmount(dto.getAmount());
         transaction.setFee(0.0);
-        transaction.setCurrency(currencyRepository.getByCode(buyer.getCurrencyType()));
+        transaction.setCurrency(currencyRepository.getByCode(buyer.getCurrencyType())); // Transakcija je u USD
         transaction.setDescription("Order Execution Transfer");
         transaction.setTimestamp(Instant.now().toEpochMilli());
         transaction.setFromAccountId(buyer);
         transaction.setToAccountId(seller);
         transaction.setTransfer(transfer);
         transaction.setBankOnly(false);
+        transaction.setDate(LocalDateTime.now().toString());
+        transaction.setTime(LocalTime.now().toString());
+
+        LocalDateTime now = LocalDateTime.now();
+        String date = now.toLocalDate().toString();
+        date = date.substring(8, 10) + "-" + date.substring(5, 7) + "-" + date.substring(0, 4);
+        transaction.setDate(date);
+
+        String time = now.toLocalTime().toString();
+        time = time.substring(0, 5);
+        transaction.setTime(time);
 
         transactionRepository.save(transaction);
 
-        System.out.println("Transakcija sacuvana! ID transakcije: " + transaction.getId());
         System.out.println("=== ZAVRŠEN processOrderTransaction ===");
     }
-
 
 }
