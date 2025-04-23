@@ -31,7 +31,7 @@ idp.localhost {
 		reverse_proxy {env.CADDY_HOST}:9000
 	}
 
-	handle /o/connect/logout {
+	handle /o/connect/* {
 		reverse_proxy {env.CADDY_HOST}:9000
 	}
 
