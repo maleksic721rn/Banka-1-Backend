@@ -18,7 +18,7 @@ import lombok.Setter;
 })
 public class IdempotenceKey {
 
-    private Integer routingNumber;
+    private String routingNumber;
 
     @Column(length = 64)
     private String locallyGeneratedKey;
