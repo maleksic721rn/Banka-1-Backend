@@ -1,5 +1,6 @@
 package com.banka1.banking.services;
 
+import com.banka1.banking.config.InterbankConfig;
 import com.banka1.banking.dto.CreateEventDTO;
 import com.banka1.banking.dto.CreateEventDeliveryDTO;
 import com.banka1.banking.dto.interbank.InterbankMessageDTO;
@@ -29,6 +30,7 @@ public class EventService {
 
     private final EventRepository eventRepository;
     private final EventDeliveryRepository eventDeliveryRepository;
+    private final InterbankConfig config;
 
     public int attemptCount(Event event) {
         return event.getDeliveries().size();
@@ -67,7 +69,7 @@ public class EventService {
                 event.setIdempotenceKey(dto.getIdempotenceKey());
             } else {
                 IdempotenceKey idempotenceKey = new IdempotenceKey();
-                idempotenceKey.setRoutingNumber(111);
+                idempotenceKey.setRoutingNumber(config.getRoutingNumber());
                 idempotenceKey.setLocallyGeneratedKey(UUID.randomUUID().toString());
                 event.setIdempotenceKey(idempotenceKey);
             }
