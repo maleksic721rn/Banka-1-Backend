@@ -2,19 +2,18 @@ package controllers
 
 import (
 	"banka1.com/broker"
-	"banka1.com/saga"
-	"errors"
-
-	//"banka1.com/broker"
 	"banka1.com/db"
 	"banka1.com/dto"
 	"banka1.com/middlewares"
+	"banka1.com/saga"
 	"banka1.com/types"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"io"
 	"net/http"
 	"os"
@@ -708,12 +707,18 @@ func (c *OTCTradeController) GetActiveOffers(ctx *fiber.Ctx) error {
 	userID := uint(ctx.Locals("user_id").(float64))
 	userIDStr := strconv.FormatUint(uint64(userID), 10)
 
+	const myRouting = 111
+	composite := fmt.Sprintf("%d%s", myRouting, userIDStr)
+
 	var trades []types.OTCTrade
 	if err := db.DB.
 		Preload("Portfolio.Security").
 		Where("status = ?", "pending").
-		Where("(local_buyer_id = ? OR local_seller_id = ? OR remote_buyer_id = ? OR remote_seller_id = ?)",
-			userID, userID, userIDStr, userIDStr).
+		Where(
+			"(local_buyer_id  = ? OR local_seller_id  = ?) OR (remote_buyer_id = ? OR remote_seller_id = ?)",
+			userID, userID,
+			composite, composite,
+		).
 		Find(&trades).Error; err != nil {
 		return ctx.Status(fiber.StatusInternalServerError).JSON(types.Response{
 			Success: false,
@@ -1086,11 +1091,188 @@ func (c *OTCTradeController) GetInterbankNegotiation(ctx *fiber.Ctx) error {
 	})
 }
 
+// FUNKCIJE ZA RUTE KOJE BANKA 4 SALJE KA NAMA
+func (c *OTCTradeController) CreateInterbankNegotiation(ctx *fiber.Ctx) error {
+	//DODATI PROVERU DA LI POSTOJI PORTFOLIO SA TIM VLASNIKOMOM I TIM TICKEROM
+	var off dto.InterbankOtcOfferDTO
+	if err := ctx.BodyParser(&off); err != nil {
+		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"error":   "Nevalidan JSON format",
+		})
+	}
+	if err := c.validator.Struct(off); err != nil {
+		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"error":   err.Error(),
+		})
+	}
+	settlementAt, err := time.Parse(time.RFC3339, off.SettlementDate)
+	if err != nil {
+		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"error":   "Nevalidan settlementDate, očekuje se RFC3339 format",
+		})
+	}
+	negID := uuid.New().String()
+
+	remoteBuyer := fmt.Sprintf("%d%s", off.BuyerID.RoutingNumber, off.BuyerID.ID)
+	remoteSeller := fmt.Sprintf("%d%s", off.SellerID.RoutingNumber, off.SellerID.ID)
+
+	modifiedBy := fmt.Sprintf("%d%s", off.LastModifiedBy.RoutingNumber, off.LastModifiedBy.ID)
+
+	trade := types.OTCTrade{
+		RemoteRoutingNumber: &off.BuyerID.RoutingNumber,
+		RemoteNegotiationID: &negID,
+		RemoteBuyerID:       &remoteBuyer,
+		RemoteSellerID:      &remoteSeller,
+		Ticker:              off.Stock.Ticker,
+		Quantity:            off.Amount,
+		PricePerUnit:        off.PricePerUnit.Amount,
+		Premium:             off.Premium.Amount,
+		SettlementAt:        settlementAt,
+		Status:              "pending",
+		ModifiedBy:          modifiedBy,
+	}
+	if err := db.DB.Create(&trade).Error; err != nil {
+		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"error":   "Greška pri čuvanju međubankarske ponude",
+		})
+	}
+
+	ourRouting := 111
+	return ctx.Status(fiber.StatusCreated).JSON(fiber.Map{
+		"success": true,
+		"data": dto.ForeignBankId{
+			RoutingNumber: ourRouting,
+			ID:            negID,
+		},
+	})
+}
+
+func (c *OTCTradeController) CounterInterbankNegotiation(ctx *fiber.Ctx) error {
+	routingStr := ctx.Params("routingNumber")
+	negID := ctx.Params("id")
+	routingNum, err := strconv.Atoi(routingStr)
+	if err != nil {
+		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"error":   "Neispravan routingNumber",
+		})
+	}
+	fmt.Println(routingNum)
+	var off dto.InterbankOtcOfferDTO
+	if err := ctx.BodyParser(&off); err != nil {
+		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"error":   "Nevalidan JSON format",
+		})
+	}
+	if err := c.validator.Struct(off); err != nil {
+		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"error":   err.Error(),
+		})
+	}
+
+	var trade types.OTCTrade
+	if err := db.DB.
+		Where("remote_negotiation_id = ?", negID).
+		First(&trade).Error; err != nil {
+		return ctx.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"success": false,
+			"error":   "Ponuda nije pronađena",
+		})
+	}
+
+	settlementAt, err := time.Parse(time.RFC3339, off.SettlementDate)
+	if err != nil {
+		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"error":   "Neispravan settlementDate, očekuje se RFC3339 format",
+		})
+	}
+
+	currActor := fmt.Sprintf("%d%s", off.LastModifiedBy.RoutingNumber, off.LastModifiedBy.ID)
+	if trade.ModifiedBy == currActor {
+		return ctx.Status(fiber.StatusConflict).JSON(fiber.Map{
+			"success": false,
+			"error":   "Nije vaš red za kontra-ponudu",
+		})
+	}
+
+	trade.Quantity = off.Amount
+	trade.PricePerUnit = off.PricePerUnit.Amount
+	trade.Premium = off.Premium.Amount
+	trade.SettlementAt = settlementAt
+	//routing := 444
+	trade.ModifiedBy = fmt.Sprintf("%d%s", off.LastModifiedBy.RoutingNumber, off.LastModifiedBy.ID)
+
+	if err := db.DB.Save(&trade).Error; err != nil {
+		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"error":   "Greška pri čuvanju kontra-ponude",
+		})
+	}
+
+	return ctx.Status(fiber.StatusOK).JSON(fiber.Map{
+		"success": true,
+		"data":    fmt.Sprintf("Interbank konter-ponuda primljena: %s/%s", routingStr, negID),
+	})
+}
+
+func (c *OTCTradeController) CloseInterbankNegotiation(ctx *fiber.Ctx) error {
+	//VIDETI DA LI DA SE BRISE ILI JE DOVOLJNO NA STATUS REJECT
+	routingStr := ctx.Params("routingNumber")
+	negID := ctx.Params("id")
+
+	routingNum, err := strconv.Atoi(routingStr)
+	if err != nil {
+		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"error":   "Neispravan routingNumber",
+		})
+	}
+
+	var trade types.OTCTrade
+	if err := db.DB.
+		Where("remote_negotiation_id = ?", negID).
+		First(&trade).Error; err != nil {
+		return ctx.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"success": false,
+			"error":   "Negotation not found",
+		})
+	}
+
+	if trade.Status != "pending" {
+		return ctx.Status(fiber.StatusConflict).JSON(fiber.Map{
+			"success": false,
+			"error":   "Negotiation is already closed or resolved",
+		})
+	}
+
+	trade.Status = "rejected"
+	trade.LastModified = time.Now().Unix()
+	trade.ModifiedBy = fmt.Sprintf("%d%s", routingNum, negID)
+
+	if err := db.DB.Save(&trade).Error; err != nil {
+		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"error":   "Greška pri zatvaranju ponude",
+		})
+	}
+
+	return ctx.Status(fiber.StatusOK).JSON(fiber.Map{
+		"success": true,
+		"data":    fmt.Sprintf("Negotiation %d/%s closed", routingNum, negID),
+	})
+}
+
 func InitOTCTradeRoutes(app *fiber.App) {
 	app.Get("/public-stock", GetPublicStocks)
 	otcController := NewOTCTradeController()
 	otc := app.Group("/otctrade", middlewares.Auth)
-	app.Get("/negotiations/:routingNumber/:id", otcController.GetInterbankNegotiation)
 	otc.Post("/offer", middlewares.RequirePermission("user.customer.otc_trade"), otcController.CreateOTCTrade)
 	otc.Put("/offer/:id/counter", middlewares.RequirePermission("user.customer.otc_trade"), otcController.CounterOfferOTCTrade)
 	otc.Put("/offer/:id/accept", middlewares.RequirePermission("user.customer.otc_trade"), otcController.AcceptOTCTrade)
@@ -1098,4 +1280,10 @@ func InitOTCTradeRoutes(app *fiber.App) {
 	otc.Put("/option/:id/execute", middlewares.RequirePermission("user.customer.otc_trade"), otcController.ExecuteOptionContract)
 	otc.Get("/offer/active", otcController.GetActiveOffers)
 	otc.Get("/option/contracts", otcController.GetUserOptionContracts)
+
+	app.Get("/negotiations/:routingNumber/:id", otcController.GetInterbankNegotiation)
+	app.Post("/negotiations", middlewares.RequireInterbankApiKey, otcController.CreateInterbankNegotiation)
+	app.Put("/negotiations/:routingNumber/:id", middlewares.RequireInterbankApiKey, otcController.CounterInterbankNegotiation)
+	app.Delete("/negotiations/:routingNumber/:id", middlewares.RequireInterbankApiKey, otcController.CloseInterbankNegotiation)
+
 }
