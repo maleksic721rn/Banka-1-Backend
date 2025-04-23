@@ -113,6 +113,7 @@ public class EventExecutorService {
             }
         } else if (attempt >= MAX_RETRIES) {
             eventService.changeEventStatus(event, DeliveryStatus.CANCELED);
+            rollbackTransaction(event);
         }
 
         long durationMs = Instant.now().toEpochMilli() - start.toEpochMilli();
@@ -144,6 +145,15 @@ public class EventExecutorService {
         } catch (Exception e) {
             e.printStackTrace();
             throw new RuntimeException("Failed to handle new transaction success: " + e.getMessage());
+        }
+    }
+
+    public void rollbackTransaction(Event event) {
+        try {
+            interbankService.sendRollback(event);
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException("Failed to handle rollback transaction: " + e.getMessage());
         }
     }
 }
