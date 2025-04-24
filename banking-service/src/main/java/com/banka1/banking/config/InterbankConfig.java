@@ -21,4 +21,7 @@ public class InterbankConfig {
 
     @Value("${FOREIGN_BANK_API_KEY}")
     private String foreignBankApiKey;
+
+    @Value("${TRADING_SERVICE_URL}")
+    private String tradingServiceUrl;
 }

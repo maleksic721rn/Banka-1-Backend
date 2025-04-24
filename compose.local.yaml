@@ -123,6 +123,7 @@ services:
       - INTERBANK_TARGET_URL=http://banking-service-b:8084/interbank
       - API_KEY=kebakraba
       - FOREIGN_BANK_API_KEY=jos_nema
+      - TRADING_SERVICE_URL=http://trading-service:8083/trading
     healthcheck:
       test: [ "CMD", "/workspace/health-check" ]
       interval: 10s
