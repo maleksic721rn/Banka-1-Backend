@@ -107,7 +107,7 @@ public class OTCService {
                 return;
 
             if(transaction.getFinished()) {
-                log.info("Finishing transaction " + uid);
+                log.info("Finishing transaction {}", uid);
 
                 Account fromAccount = transaction.getBuyerAccount();
                 Account toAccount = transaction.getSellerAccount();
@@ -145,13 +145,18 @@ public class OTCService {
                 bankTransaction.setToAccountId(toAccount);
                 bankTransaction.setTransfer(transfer);
 
+                String dateStr = LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+                String timeStr = LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm"));
+                bankTransaction.setDate(dateStr);
+                bankTransaction.setTime(timeStr);
+
                 transactionRepository.save(bankTransaction);
 
                 otcTransactionRepository.delete(transaction);
                 otcTransactionRepository.flush();
-                log.info("Finished transaction " + uid);
+                log.info("Finished transaction {}", uid);
             } else if(transaction.getAmountGiven() > 0) {
-                log.info("Consistency check for " + uid);
+                log.info("Consistency check for {}", uid);
 
                 if(!transaction.getAmountGiven().equals(transaction.getAmountTaken()) || !transaction.getAmountTaken().equals(transaction.getAmount()) || !transaction.getAmountGiven().equals(transaction.getAmount()))
                     throw new Exception("Inconsistency found, rolling back...");
@@ -161,7 +166,7 @@ public class OTCService {
                 otcTransactionRepository.saveAndFlush(transaction);
                 nextStage(transaction);
             } else if(transaction.getAmountTaken() > 0) {
-                log.info("Transfer funds for " + uid);
+                log.info("Transfer funds for {}", uid);
 
                 transaction.getSellerAccount().setBalance(transaction.getSellerAccount().getBalance() + transaction.getAmount());
                 transaction.setAmountGiven(transaction.getAmount());
@@ -170,7 +175,7 @@ public class OTCService {
                 otcTransactionRepository.saveAndFlush(transaction);
                 nextStage(transaction);
             } else {
-                log.info("Reserve funds for " + uid);
+                log.info("Reserve funds for {}", uid);
 
                 if(transaction.getBuyerAccount().getBalance() < transaction.getAmount())
                     throw new Exception("Insufficient funds");

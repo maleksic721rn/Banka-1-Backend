@@ -37,7 +37,7 @@ presubmits:
         # koristite:
         #   - harbor.k8s.elab.rs/base-images/base:java-21-node-18-docker (Java 21)
         #   - harbor.k8s.elab.rs/base-images/base:java-17-node-18-docker (Java 17)
-        - image: harbor.k8s.elab.rs/base-images/base:gradle-17-node-22-docker
+        - image: harbor.k8s.elab.rs/base-images/base:gradle-21-node-22-docker
           command:
             - /bin/bash
             - -c
@@ -91,7 +91,14 @@ presubmits:
               # Promeniti ovu komandu da pokreće one servise koji vam trebaju za vaše
               # testove. Moguće je više puta pokrenuti "docker compose up" za različite
               # Docker Compose servise.
-              docker compose up -d banking-db message-broker user-service
+              
+              docker compose up -d banking-db message-broker user-db 
+              
+            
+              # TODO: Move this back into docker compose
+              # It's required since both the user and banking services got changed in the same PR
+              gradle user-service:bootRun > /dev/null 2>&1 &
+
 
               # trap komanda obezbeđuje da se "collectJUnitCoverage"
               # funkcija izvrši pre samog izlaska iz ove skripte, nezavisno

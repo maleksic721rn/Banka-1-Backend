@@ -2,23 +2,30 @@ package com.banka1.banking.config;
 
 import com.banka1.banking.utils.ResponseTemplate;
 import io.swagger.v3.oas.annotations.Hidden;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.util.HashMap;
 import java.util.Map;
 
+@Slf4j
 @Hidden
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<?> handleRuntime(RuntimeException ex) {
-        System.out.println(ex.getMessage());
-        System.out.println(ex.getStackTrace());
+        if (ex instanceof AccessDeniedException e) {
+            throw e;
+        }
+        // Could possibly be an exception before the controller as well
+        log.error("Unhandled exception: ", ex);
         return ResponseTemplate.create(
                 ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR),
                 false,
@@ -26,6 +33,22 @@ public class GlobalExceptionHandler {
                         "stacktrace", ex.getStackTrace()
                 ),
                 ex.getMessage()
+        );
+    }
+
+
+    // NOTE: in production, these should probably return 403 no info
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<?> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
+        Map<String, String> errors = new HashMap<>();
+        errors.put(ex.getName(), "Invalid value: " + ex.getValue());
+
+
+        return ResponseTemplate.create(
+                ResponseEntity.status(HttpStatus.BAD_REQUEST),
+                false,
+                errors,
+                "Invalid type"
         );
     }
 
@@ -37,7 +60,6 @@ public class GlobalExceptionHandler {
             errors.put(error.getField(), error.getDefaultMessage());
         });
 
-        System.out.println(errors);
 
         return ResponseTemplate.create(
                 ResponseEntity.status(HttpStatus.BAD_REQUEST),

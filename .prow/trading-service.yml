@@ -61,13 +61,22 @@ presubmits:
               # Promeniti ovu komandu da pokreće one servise koji vam trebaju za vaše
               # testove. Moguće je više puta pokrenuti "docker compose up" za različite
               # Docker Compose servise.
-              docker compose up -d trading-db message-broker user-service banking-service
               
+              docker compose -f compose.yaml up -d trading-db message-broker user-service banking-service proxy idp
+              
+            
               SERVICE_NAME="trading-service"
               cd trading-service
               go install github.com/swaggo/swag/cmd/swag@latest
               go install
-              go test ./...
+              # Override the default env file
+              cat <<EOF > .env
+              TOKEN_ENDPOINT=http://localhost:9000/o/oauth2/token
+              CLIENT_ID=trading-service-client
+              CLIENT_SECRET=verysecuresecretmuchwow
+              EOF
+              go test -v ./...
+              
               /home/prow/go/bin/swag init
           securityContext:
             privileged: true

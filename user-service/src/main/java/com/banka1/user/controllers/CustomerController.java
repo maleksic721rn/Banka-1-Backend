@@ -1,14 +1,13 @@
 package com.banka1.user.controllers;
 
+import com.banka1.common.security.annotation.UserClaim;
 import com.banka1.user.DTO.request.CreateCustomerRequest;
 import com.banka1.user.DTO.request.UpdateCustomerRequest;
 import com.banka1.user.DTO.request.UpdatePermissionsRequest;
-import com.banka1.user.aspect.Authorization;
 import com.banka1.user.model.Customer;
-import com.banka1.common.model.Permission;
 import com.banka1.user.service.CustomerService;
-import com.banka1.user.service.AuthService;
 import com.banka1.user.utils.ResponseTemplate;
+
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -16,25 +15,27 @@ import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 import java.util.Optional;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/customer")
 @Tag(name = "Customer API", description = "API za upravljanje mušterijama")
 public class CustomerController {
 
     private final CustomerService customerService;
-    private final AuthService authService;
 
-    public CustomerController(CustomerService customerService, AuthService authService) {
+    public CustomerController(CustomerService customerService) {
         this.customerService = customerService;
-        this.authService = authService;
     }
 
     @Operation(
@@ -80,10 +81,10 @@ public class CustomerController {
         )
     })
     @GetMapping("/{id}")
-    @Authorization(permissions = { Permission.READ_CUSTOMER }, allowIdFallback = true )
+    @PreAuthorize("hasRole('READ_CUSTOMER') or authentication.userId == #id or authentication.isAdmin")
     public ResponseEntity<?> getById(
             @Parameter(required = true, example = "1")
-            @PathVariable String id
+            @PathVariable Long id
     ) {
         try {
             var customer = customerService.findById(id);
@@ -97,7 +98,7 @@ public class CustomerController {
     }
 
     @PostMapping
-    @Authorization(permissions = { Permission.CREATE_CUSTOMER }, allowIdFallback = true )
+    @PreAuthorize("hasRole('CREATE_CUSTOMER') or authentication.isAdmin")
     @Operation(summary = "Kreiranje mušterije", description = "Kreira mušteriju i vraća ID kreirane mušterije")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Mušterija uspešno kreirana", content = @Content(mediaType = "application/json",
@@ -143,14 +144,13 @@ public class CustomerController {
         )
     })
     public ResponseEntity<?> createCustomer(
-            @RequestBody @Parameter(description = "Customer data for creation") CreateCustomerRequest customerDTO,
-            @RequestHeader(value = "Authorization", required = false) String authorization) {
-        Customer savedCustomer = customerService.createCustomer(customerDTO, authService.parseToken(authService.getToken(authorization)).get("id", Long.class));
+            @RequestBody @Parameter(description = "Customer data for creation") CreateCustomerRequest customerDTO, @UserClaim Long id) {
+        Customer savedCustomer = customerService.createCustomer(customerDTO, id);
         return ResponseTemplate.create(ResponseEntity.status(HttpStatus.CREATED), true, Map.of("customer", savedCustomer), null);
     }
 
     @PutMapping("/{id}")
-    @Authorization(permissions = { Permission.EDIT_CUSTOMER }, allowIdFallback = true )
+    @PreAuthorize("hasRole('EDIT_CUSTOMER') or authentication.userId == #id or authentication.isAdmin")
     @Operation(summary = "Ažuriranje mušterije")
     @ApiResponses(value = {
         @ApiResponse(responseCode = "200", description = "Podaci korisnika ažurirani", content = @Content(mediaType = "application/json",
@@ -194,7 +194,7 @@ public class CustomerController {
     }
 
     @DeleteMapping("/{id}")
-    @Authorization(permissions = { Permission.DELETE_CUSTOMER }, allowIdFallback = true )
+    @PreAuthorize("hasRole('DELETE_CUSTOMER') or authentication.isAdmin")
     @Operation(summary = "Brisanje mušterije")
     @ApiResponses(value = {
         @ApiResponse(responseCode = "200", description = "Korisnik uspešno obrisan", content = @Content(mediaType = "application/json",
@@ -236,7 +236,7 @@ public class CustomerController {
     }
 
     @PutMapping("/{id}/permissions")
-    @Authorization(permissions = { Permission.SET_CUSTOMER_PERMISSION }, allowIdFallback = true )
+    @PreAuthorize("hasRole('SET_CUSTOMER_PERMISSION') or authentication.isAdmin")
     @Operation(summary = "Ažuriranje permisija mušterije")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Uspesno ažurirane permisije", content = @Content(mediaType = "application/json",

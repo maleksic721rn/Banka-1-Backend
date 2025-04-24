@@ -1,0 +1,59 @@
+spring:
+  application:
+    name: idp
+  profiles:
+    include: postgres
+    active: dev
+  output:
+    ansi:
+      enabled: always
+  session:
+    timeout: 30s
+    redis:
+      namespace: spring:session:idp
+  threads:
+    virtual:
+      enabled: true
+  sql:
+    init:
+      mode: always
+  security:
+    oauth2:
+      authorizationserver:
+        issuer: https://idp.localhost
+        endpoint:
+          authorization-uri: /o/oauth2/authorize
+          token-uri: /o/oauth2/token
+          token-revocation-uri: /o/oauth2/revoke
+          token-introspection-uri: /o/oauth2/introspect
+          jwk-set-uri: /o/oauth2/jwks
+          device-authorization-uri: /oauth2/device_authorization
+          device-verification-uri: /o/oauth2/device_verification
+          oidc:
+            logout-uri: /o/connect/logout
+            client-registration-uri: /o/connect/register
+server:
+  port: 9000
+  servlet:
+    session:
+      cookie:
+        same-site: lax
+  forward-headers-strategy: framework
+  tomcat:
+    remoteip:
+      protocol-header: x-forwarded-proto
+
+frontend:
+  login:
+    url: /login
+
+
+logging:
+  level:
+    org.springframework.security: trace
+    org.springframework.web: debug
+
+management:
+  health:
+    jms:
+      enabled: false

@@ -2,7 +2,9 @@ package main
 
 import (
 	"banka1.com/cron"
+	"banka1.com/oauth"
 	"banka1.com/routes"
+	"banka1.com/services"
 	fiberSwagger "github.com/swaggo/fiber-swagger"
 
 	"banka1.com/controllers/orders"
@@ -40,6 +42,15 @@ func main() {
 
 	broker.Connect(os.Getenv("MESSAGE_BROKER_NETWORK"), os.Getenv("MESSAGE_BROKER_HOST"))
 	db.Init()
+
+	oauthConfig := oauth.ClientConfig{
+		TokenURL:     os.Getenv("TOKEN_ENDPOINT"),
+		ClientID:     os.Getenv("CLIENT_ID"),
+		ClientSecret: os.Getenv("CLIENT_SECRET"),
+		Scopes:       []string{"openid", "profile", "email", "trading-service"},
+	}
+
+	services.GetOAuthService().Initialize(oauthConfig)
 
 	cron.StartScheduler()
 

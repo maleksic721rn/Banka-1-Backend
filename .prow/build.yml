@@ -43,7 +43,7 @@ postsubmits:
         # koristite:
         #   - harbor.k8s.elab.rs/base-images/base:java-21-node-18-docker (Java 21)
         #   - harbor.k8s.elab.rs/base-images/base:java-17-node-18-docker (Java 17)
-        - image: harbor.k8s.elab.rs/base-images/base:gradle-17-node-22-docker
+        - image: harbor.k8s.elab.rs/base-images/base:gradle-21-node-22-docker
           command:
             - /bin/bash
             - -c
@@ -70,7 +70,7 @@ postsubmits:
               # Promeniti petlju tako sadrži sve mikroservise koje imate, npr:
               #   for serviceName in user-service berza-service banka-service; do
               gradle bootBuildImage
-              for serviceName in user-service banking-service notification-service trading-service support-service; do
+              for serviceName in user-service banking-service notification-service trading-service support-service idp gateway; do
                 
                 # Pravi kopiju prethodno buildovanog image sa tagom zasnovanim na commit hash-u.
                 docker tag ${serviceName}:0.0.1-SNAPSHOT harbor.k8s.elab.rs/${TEAM_NAME}/${serviceName}:latest

@@ -3,7 +3,9 @@ package com.banka1.banking.services;
 import com.banka1.banking.dto.ReceiverDTO;
 import com.banka1.banking.models.Receiver;
 import com.banka1.banking.repository.ReceiverRepository;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -78,6 +80,11 @@ public class ReceiverService {
         receiverRepository.deleteById(id);
     }
 
+    /**
+    *  The naming of this method is a lie; it checks whether the receiver exists for the given customer ID
+    * @param id the customer ID
+    * @return true if the receiver exists for the given customer ID, false otherwise
+    */
     public boolean accountExists(Long id){
         return receiverRepository.existsByCustomerId(id);
     }
