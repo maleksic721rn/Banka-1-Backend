@@ -1,7 +1,4 @@
 # If you want to use caddy outside of docker you need to define the CADDY_HOST environment variable
-{
-	debug
-}
 
 localhost {
 	handle /api/* {

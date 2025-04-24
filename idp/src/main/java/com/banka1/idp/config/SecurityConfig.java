@@ -51,10 +51,7 @@ import java.security.KeyPairGenerator;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 import java.time.Duration;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -131,7 +128,8 @@ public class SecurityConfig {
                         (authorizationServer) ->
                                 authorizationServer.oidc(
                                         oidc ->
-                                                oidc.userInfoEndpoint(
+                                                oidc
+                                                        .userInfoEndpoint(
                                                                 userInfo ->
                                                                         userInfo.userInfoMapper(
                                                                                 userInfoMapper()))
@@ -179,16 +177,6 @@ public class SecurityConfig {
         return new JdbcRegisteredClientRepository(template);
     }
 
-//    @Bean
-//    OAuth2AuthorizationService oAuth2AuthorizationService(
-//            JdbcTemplate template,
-//            RegisteredClientRepository regClientRepository,
-//            ObjectMapper om) {
-//        SecurityJackson2Modules.enableDefaultTyping(om);
-//        JdbcOAuth2AuthorizationService jdbcOAuth2AuthorizationService =
-//                new JdbcOAuth2AuthorizationService(template, regClientRepository);
-//        return jdbcOAuth2AuthorizationService;
-//    }
 
     @Bean
     public ApplicationRunner registeredClientCreator(
@@ -376,7 +364,7 @@ public class SecurityConfig {
         return TokenSettings.builder()
                 .refreshTokenTimeToLive(Duration.ofDays(1))
                 .reuseRefreshTokens(true)
-                .accessTokenTimeToLive(Duration.ofSeconds(30))
+                .accessTokenTimeToLive(Duration.ofMinutes(5))
                 .build();
     }
 }
