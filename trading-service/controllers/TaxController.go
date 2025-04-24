@@ -2,11 +2,14 @@ package controllers
 
 import (
 	"log"
+	"os"
 	"time"
 
 	"github.com/go-co-op/gocron"
 
+	"banka1.com/broker"
 	"banka1.com/db"
+	"banka1.com/dto"
 	"banka1.com/middlewares"
 	"banka1.com/types"
 	"github.com/gofiber/fiber/v2"
@@ -75,13 +78,19 @@ func (tc *TaxController) RunTax(c *fiber.Ctx) error {
 	yearMonth := now.Format("2006-01")
 
 	var transactions []types.Transaction
-	err := db.DB.Raw(`
-		SELECT id, buyer_id, seller_id, security_id, quantity, price_per_unit, total_price, created_at
-		FROM transactions
-		WHERE total_price > 0
-		  AND TO_CHAR(created_at, 'YYYY-MM') = ?
-		  AND tax_paid = FALSE
-	`, yearMonth).Scan(&transactions).Error
+
+	query := "SELECT * FROM transactions WHERE total_price > 0"
+
+	// koristimo orm jel tako kolege
+	if os.Getenv("DB_TYPE") == "POSTGRES_DSN" {
+		query += " AND TO_CHAR(created_at, 'YYYY-MM') = ?"
+	} else {
+		query += " AND substr(created_at, 1, 7) = ?"
+	}
+
+	query += " AND tax_paid = FALSE"
+
+	err := db.DB.Raw(query, yearMonth).Scan(&transactions).Error
 
 	if err != nil {
 		log.Printf("Error fetching transactions: %v", err)
@@ -91,19 +100,76 @@ func (tc *TaxController) RunTax(c *fiber.Ctx) error {
 		})
 	}
 
+	var hadError bool = false
 	for _, transaction := range transactions {
-		// Calculate profit and tax
-		//profit := transaction.TotalPrice
-		//tax := profit * 0.15
+		log.Printf("Porez na transakciju %d", transaction.ID)
 
-		// Deduct tax from the buyer's account
-		//err = db.DB.Exec(`
-		//	UPDATE accounts
-		//	SET balance = balance - ?
-		//	WHERE id = ?
-		//`, tax, transaction.BuyerID).Error
+		profit := transaction.TotalPrice
+		tax := profit * 0.15
+
+		var accountId int64 = -1
+		if transaction.OrderID != 0 {
+			// order
+			var order types.Order
+			if err := db.DB.First(&order, transaction.OrderID).Error; err != nil {
+				hadError = true
+				log.Printf("Greska pri fetch-u ordera %d: %v", transaction.OrderID, err)
+				continue
+			}
+
+			accountId = int64(order.AccountID)
+		} else {
+			// otc
+			var contract types.OptionContract
+			if err := db.DB.First(&contract, transaction.ContractID).Error; err != nil {
+				hadError = true
+				log.Printf("Greska pri fetch-u option-a %d: %v", transaction.ContractID, err)
+				continue
+			}
+			sellerAccounts, err := broker.GetAccountsForUser(int64(*contract.SellerID))
+			if err != nil {
+				hadError = true
+				log.Printf("Greska pri fetch-u računa %v", err)
+				continue
+			}
+
+			var sellerAccountID int64 = -1
+
+			for _, acc := range sellerAccounts {
+				if acc.CurrencyType == "USD" {
+					sellerAccountID = acc.ID
+					break
+				}
+			}
+
+			if sellerAccountID == -1 {
+				hadError = true
+				log.Printf("Nije pronadjen USD račun")
+				continue
+			}
+
+			accountId = sellerAccountID
+		}
+
+		if accountId == -1 {
+			hadError = true
+			continue
+		}
+
+		taxDto := dto.TaxCollectionDTO{
+			AccountId: accountId,
+			Amount:    tax,
+		}
+
+		err := broker.SendTaxCollection(&taxDto)
+		if err != nil {
+			hadError = true
+			log.Printf("Greska pri slanju TaxCollectionDTO: %v", err)
+			continue
+		}
 
 		if err != nil {
+			hadError = true
 			log.Printf("Error deducting tax for transaction %d: %v", transaction.ID, err)
 			continue
 		}
@@ -115,14 +181,20 @@ func (tc *TaxController) RunTax(c *fiber.Ctx) error {
 		`, transaction.ID).Error
 
 		if err != nil {
+			hadError = true
 			log.Printf("Error updating transaction %d: %v", transaction.ID, err)
 			continue
 		}
 	}
 
+	additionalMessage := ""
+	if hadError {
+		additionalMessage = " Some accounts could not have taxes deducted from them properly. Please check the logs."
+	}
+
 	return c.Status(202).JSON(types.Response{
 		Success: true,
-		Data:    "Tax calculation and deduction completed successfully.",
+		Data:    "Tax calculation and deduction completed successfully." + additionalMessage,
 	})
 
 }

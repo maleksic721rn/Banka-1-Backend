@@ -118,11 +118,19 @@ func LoadPortfolios() {
 		PublicCount:   10,
 	}
 
+	portfolio5 := types.Portfolio{
+		UserID:        3,
+		SecurityID:    aaplSecurity.ID, // NVDA
+		Quantity:      30,
+		PurchasePrice: 279.99,
+		PublicCount:   15,
+	}
+
 	if err := db.DB.FirstOrCreate(&portfolio1, types.Portfolio{
 		UserID:     portfolio1.UserID,
 		SecurityID: portfolio1.SecurityID,
 	}).Error; err != nil {
-		log.Println("Greška pri dodavanju portfolio3:", err)
+		log.Println("Greška pri dodavanju portfolio1:", err)
 	} else {
 		log.Println("Portfolio1 uspešno dodat")
 	}
@@ -130,7 +138,7 @@ func LoadPortfolios() {
 		UserID:     portfolio2.UserID,
 		SecurityID: portfolio2.SecurityID,
 	}).Error; err != nil {
-		log.Println("Greška pri dodavanju portfolio4:", err)
+		log.Println("Greška pri dodavanju portfolio2:", err)
 	} else {
 		log.Println("Portfolio2 uspešno dodat")
 	}
@@ -138,7 +146,7 @@ func LoadPortfolios() {
 		UserID:     portfolio3.UserID,
 		SecurityID: portfolio3.SecurityID,
 	}).Error; err != nil {
-		log.Println("Greška pri dodavanju portfolio5:", err)
+		log.Println("Greška pri dodavanju portfolio3:", err)
 	} else {
 		log.Println("Portfolio3 uspešno dodat")
 	}
@@ -146,9 +154,17 @@ func LoadPortfolios() {
 		UserID:     portfolio4.UserID,
 		SecurityID: portfolio4.SecurityID,
 	}).Error; err != nil {
-		log.Println("Greška pri dodavanju portfolio5:", err)
+		log.Println("Greška pri dodavanju portfolio4:", err)
 	} else {
 		log.Println("Portfolio4 uspešno dodat")
+	}
+	if err := db.DB.FirstOrCreate(&portfolio5, types.Portfolio{
+		UserID:     portfolio5.UserID,
+		SecurityID: portfolio5.SecurityID,
+	}).Error; err != nil {
+		log.Println("Greška pri dodavanju portfolio5:", err)
+	} else {
+		log.Println("Portfolio5 uspešno dodat")
 	}
 }
 

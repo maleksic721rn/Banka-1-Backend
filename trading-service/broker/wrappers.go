@@ -59,3 +59,21 @@ func SendOrderTransactionInit(dto *dto.OrderTransactionInitiationDTO) error {
 
 	return errors.New(*m)
 }
+
+func SendTaxCollection(dto *dto.TaxCollectionDTO) error {
+	if conn == nil {
+		return nil
+	}
+
+	var m *string
+	err := sendAndRecieve("collect-tax", dto, &m)
+	if err != nil {
+		return err
+	}
+
+	if m == nil || *m == "null" {
+		return nil
+	}
+
+	return errors.New(*m)
+}
