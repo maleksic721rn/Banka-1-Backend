@@ -3,6 +3,7 @@ package shared
 import (
 	"crypto/tls"
 	"github.com/gofiber/fiber/v2"
+	"github.com/valyala/fasthttp"
 	"log"
 	"net/http"
 	"os"
@@ -27,6 +28,8 @@ func HttpClient() *http.Client {
 
 func FiberAgent() *fiber.Agent {
 	agent := fiber.AcquireAgent()
+	agent.HostClient = &fasthttp.HostClient{}
+	agent.HostClient.TLSConfig = &tls.Config{}
 
 	ignoreSSL := os.Getenv("IGNORE_SSL_CERTS")
 	if ignoreSSL == "" || strings.ToLower(ignoreSSL) == "true" {
