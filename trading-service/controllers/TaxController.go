@@ -2,16 +2,16 @@ package controllers
 
 import (
 	"log"
-	"time"
 	"os"
+	"time"
 
 	"github.com/go-co-op/gocron"
 
+	"banka1.com/broker"
 	"banka1.com/db"
+	"banka1.com/dto"
 	"banka1.com/middlewares"
 	"banka1.com/types"
-	"banka1.com/broker"
-	"banka1.com/dto"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -126,8 +126,7 @@ func (tc *TaxController) RunTax(c *fiber.Ctx) error {
 				log.Printf("Greska pri fetch-u option-a %d: %v", transaction.ContractID, err)
 				continue
 			}
-
-			sellerAccounts, err := broker.GetAccountsForUser(int64(contract.SellerID))
+			sellerAccounts, err := broker.GetAccountsForUser(int64(*contract.SellerID))
 			if err != nil {
 				hadError = true
 				log.Printf("Greska pri fetch-u računa %v", err)
