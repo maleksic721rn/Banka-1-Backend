@@ -58,26 +58,46 @@ type Order struct {
 	ApprovedByUser    *uint    `gorm:"foreignKey:ApprovedBy"`
 }
 
+//	type OTCTrade struct {
+//		ID           uint      `gorm:"primaryKey"`
+//		PortfolioID  uint      `gorm:"not null"`
+//		SecurityId   uint      `gorm:"not null"`
+//		SellerID     uint      `gorm:"not null"`
+//		BuyerID      *uint     `gorm:"default:null"`
+//		Quantity     int       `gorm:"not null"`
+//		PricePerUnit float64   `gorm:"not null"`
+//		Premium      float64   `gorm:"not null"`
+//		SettlementAt time.Time `gorm:"not null"`
+//		Status       string    `gorm:"type:text;default:'pending'"`
+//		LastModified int64     `gorm:"autoUpdateTime"`
+//		//promeniti da pise ime korisnika koji je menjao a ne id(komunbikacija sa user servisom)
+//		ModifiedBy *uint `gorm:"default:null"`
+//		CreatedAt  int64 `gorm:"autoCreateTime"`
+//		//Seller       *uint      `gorm:"foreignKey:SellerID"`
+//		//Buyer        *uint     `gorm:"foreignKey:BuyerID"`
+//		Portfolio Portfolio `gorm:"foreignKey:PortfolioID" json:"portfolio"`
+//	}
 type OTCTrade struct {
-	ID           uint      `gorm:"primaryKey"`
-	PortfolioID  uint      `gorm:"not null"`
-	SecurityId   uint      `gorm:"not null"`
-	SellerID     uint      `gorm:"not null"`
-	BuyerID      *uint     `gorm:"default:null"`
-	Quantity     int       `gorm:"not null"`
-	PricePerUnit float64   `gorm:"not null"`
-	Premium      float64   `gorm:"not null"`
-	SettlementAt time.Time `gorm:"not null"`
-	Status       string    `gorm:"type:text;default:'pending'"`
-	LastModified int64     `gorm:"autoUpdateTime"`
-	//promeniti da pise ime korisnika koji je menjao a ne id(komunbikacija sa user servisom)
-	ModifiedBy *uint `gorm:"default:null"`
-	CreatedAt  int64 `gorm:"autoCreateTime"`
-	//Seller       *uint      `gorm:"foreignKey:SellerID"`
-	//Buyer        *uint     `gorm:"foreignKey:BuyerID"`
-	Portfolio Portfolio `gorm:"foreignKey:PortfolioID" json:"portfolio"`
+	ID                  uint       `gorm:"primaryKey" json:"id"`
+	PortfolioID         *uint      `gorm:"" json:"portfolioId,omitempty"`
+	SecurityID          *uint      `gorm:"" json:"securityId,omitempty"`
+	LocalSellerID       *uint      `gorm:"" json:"localSellerId,omitempty"`
+	LocalBuyerID        *uint      `gorm:"" json:"localBuyerId,omitempty"`
+	RemoteRoutingNumber *int       `gorm:"" json:"remoteRoutingNumber,omitempty"`
+	RemoteNegotiationID *string    `gorm:"" json:"remoteNegotiationId,omitempty"`
+	RemoteSellerID      *string    `gorm:"" json:"remoteSellerId,omitempty"`
+	RemoteBuyerID       *string    `gorm:"" json:"remoteBuyerId,omitempty"`
+	Ticker              string     `gorm:"not null" json:"ticker"`
+	Quantity            int        `gorm:"not null" json:"quantity"`
+	PricePerUnit        float64    `gorm:"not null" json:"pricePerUnit"`
+	Premium             float64    `gorm:"not null" json:"premium"`
+	SettlementAt        time.Time  `gorm:"not null" json:"settlementAt"`
+	Status              string     `gorm:"type:text;default:'pending'" json:"status"`
+	LastModified        int64      `gorm:"autoUpdateTime" json:"lastModified"`
+	ModifiedBy          string     `gorm:"not null" json:"modifiedBy"`
+	CreatedAt           int64      `gorm:"autoCreateTime" json:"createdAt"`
+	Portfolio           *Portfolio `gorm:"foreignKey:PortfolioID" json:"portfolio"`
 }
-
 type Portfolio struct {
 	ID            uint     `gorm:"primaryKey" json:"id,omitempty"`
 	UserID        uint     `gorm:"not null" json:"user_id,omitempty"`
@@ -91,24 +111,28 @@ type Portfolio struct {
 }
 
 type OptionContract struct {
-	ID           uint      `gorm:"primaryKey"`
-	OTCTradeID   uint      `gorm:"not null"`
-	BuyerID      uint      `gorm:"not null"`
-	SellerID     uint      `gorm:"not null"`
-	PortfolioID  uint      `gorm:"not null"`
-	SecurityID   uint      `gorm:"not null"`
-	Quantity     int       `gorm:"not null"`
-	StrikePrice  float64   `gorm:"not null"`
-	Premium      float64   `gorm:"not null"`
-	SettlementAt time.Time `gorm:"not null"`
-	Status       string    `gorm:"type:text;default:'active'"`
-	IsExercised  bool      `gorm:"default:false"`
-	CreatedAt    int64     `gorm:"autoCreateTime"`
-	ExercisedAt  *int64    `gorm:"default:null"`
-	UID          string    `gorm:"type:varchar(255);index"`
-	OTCTrade     OTCTrade  `gorm:"foreignKey:OTCTradeID" json:"otc_trade"`
-	Portfolio    Portfolio `gorm:"foreignKey:PortfolioID" json:"portfolio"`
-	// Security   Security  `gorm:"foreignKey:SecurityID"`
+	ID                  uint       `gorm:"primaryKey" json:"id"`
+	OTCTradeID          uint       `gorm:"not null" json:"otcTradeId"`
+	RemoteContractID    *string    `gorm:"type:varchar(255);index" json:"remoteContractId,omitempty"`
+	BuyerID             *uint      `gorm:"default:null" json:"buyerId,omitempty"`
+	SellerID            *uint      `gorm:"default:null" json:"sellerId,omitempty"`
+	RemoteBuyerID       *string    `gorm:"type:varchar(255)" json:"remoteBuyerId,omitempty"`
+	RemoteSellerID      *string    `gorm:"type:varchar(255)" json:"remoteSellerId,omitempty"`
+	Ticker              string     `gorm:"not null" json:"ticker"`
+	PortfolioID         *uint      `gorm:"default:null" json:"portfolioId,omitempty"`
+	SecurityID          *uint      `gorm:"default:null" json:"securityId,omitempty"`
+	Quantity            int        `gorm:"not null" json:"quantity"`
+	StrikePrice         float64    `gorm:"not null" json:"strikePrice"`
+	Premium             float64    `gorm:"not null" json:"premium"`
+	UID                 string     `gorm:"type:varchar(255);index" json:"uid,omitempty"`
+	SettlementAt        time.Time  `gorm:"not null" json:"settlementAt"`
+	Status              string     `gorm:"type:text;default:'active'" json:"status"`
+	IsExercised         bool       `gorm:"default:false" json:"isExercised"`
+	CreatedAt           int64      `gorm:"autoCreateTime" json:"createdAt"`
+	ExercisedAt         *int64     `gorm:"default:null" json:"exercisedAt,omitempty"`
+	RemoteNegotiationID *string    `gorm:"" json:"remoteNegotiationId,omitempty"`
+	OTCTrade            OTCTrade   `gorm:"foreignKey:OTCTradeID" json:"otcTrade"`
+	Portfolio           *Portfolio `gorm:"foreignKey:PortfolioID" json:"portfolio,omitempty"`
 }
 
 type Tax struct {
@@ -131,6 +155,25 @@ type Exchange struct {
 	Timezone  string `gorm:"not null" json:"timezone,omitempty"`
 	OpenTime  string `gorm:"not null" json:"open_time,omitempty"`
 	CloseTime string `gorm:"not null" json:"close_time,omitempty"`
+}
+
+type InterbankNegotiation struct {
+	ID                     uint      `gorm:"primaryKey"`
+	Ticker                 string    `gorm:"not null"`
+	Amount                 int       `gorm:"not null"`
+	SettlementAt           time.Time `gorm:"not null"`
+	PricePerUnit           float64   `gorm:"not null"`
+	Premium                float64   `gorm:"not null"`
+	InitiatorRoutingNumber int       `gorm:"not null"`
+	InitiatorID            string    `gorm:"not null"`
+	LastModifiedByID       string    `gorm:"not null"`
+	LastModifiedRouting    int       `gorm:"not null"`
+	RemoteNegotiationID    string    `gorm:"not null"`
+	RemoteRoutingNumber    int       `gorm:"not null"`
+	Status                 string    `gorm:"default:'pending'"`
+	LocalBuyerUserID       *uint     `gorm:"default:null"`
+	CreatedAt              int64     `gorm:"autoCreateTime"`
+	UpdatedAt              int64     `gorm:"autoUpdateTime"`
 }
 
 type OTCSagaPhase int

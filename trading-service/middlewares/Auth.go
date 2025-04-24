@@ -3,6 +3,8 @@ package middlewares
 import (
 	"fmt"
 	"github.com/gofiber/fiber/v2/log"
+	"os"
+
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -51,4 +53,16 @@ func RequirePermission(requiredPermission string) fiber.Handler {
 			"error":   fmt.Sprintf("Unauthorized: Missing permission '%s'", requiredPermission),
 		})
 	}
+}
+
+func RequireInterbankApiKey(c *fiber.Ctx) error {
+	key := c.Get("X-Api-Key")
+	expected := os.Getenv("BANK1_SECURITY")
+	if key == "" || key != expected {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"success": false,
+			"error":   "Unauthorized: invalid interbank API key",
+		})
+	}
+	return c.Next()
 }
