@@ -114,14 +114,17 @@ type OptionContract struct {
 	ID               uint       `gorm:"primaryKey" json:"id"`
 	OTCTradeID       uint       `gorm:"not null" json:"otcTradeId"`
 	RemoteContractID *string    `gorm:"type:varchar(255);index" json:"remoteContractId,omitempty"`
-	BuyerID          uint       `gorm:"not null" json:"buyerId"`
-	SellerID         uint       `gorm:"not null" json:"sellerId"`
+	BuyerID          *uint      `gorm:"default:null" json:"buyerId,omitempty"`
+	SellerID         *uint      `gorm:"default:null" json:"sellerId,omitempty"`
+	RemoteBuyerID    *string    `gorm:"type:varchar(255)" json:"remoteBuyerId,omitempty"`
+	RemoteSellerID   *string    `gorm:"type:varchar(255)" json:"remoteSellerId,omitempty"`
+	Ticker           string     `gorm:"not null" json:"ticker"`
 	PortfolioID      *uint      `gorm:"default:null" json:"portfolioId,omitempty"`
 	SecurityID       *uint      `gorm:"default:null" json:"securityId,omitempty"`
 	Quantity         int        `gorm:"not null" json:"quantity"`
 	StrikePrice      float64    `gorm:"not null" json:"strikePrice"`
 	Premium          float64    `gorm:"not null" json:"premium"`
-	UID              string     `gorm:"type:varchar(255);index"`
+	UID              string     `gorm:"type:varchar(255);index" json:"uid,omitempty"`
 	SettlementAt     time.Time  `gorm:"not null" json:"settlementAt"`
 	Status           string     `gorm:"type:text;default:'active'" json:"status"`
 	IsExercised      bool       `gorm:"default:false" json:"isExercised"`

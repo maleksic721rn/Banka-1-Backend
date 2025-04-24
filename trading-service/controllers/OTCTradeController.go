@@ -422,8 +422,8 @@ func (c *OTCTradeController) AcceptOTCTrade(ctx *fiber.Ctx) error {
 
 		contract := types.OptionContract{
 			OTCTradeID:   trade.ID,
-			BuyerID:      *trade.LocalBuyerID,
-			SellerID:     *trade.LocalSellerID,
+			BuyerID:      trade.LocalBuyerID,
+			SellerID:     trade.LocalSellerID,
 			PortfolioID:  trade.PortfolioID,
 			SecurityID:   trade.SecurityID,
 			Quantity:     trade.Quantity,
@@ -434,7 +434,9 @@ func (c *OTCTradeController) AcceptOTCTrade(ctx *fiber.Ctx) error {
 			CreatedAt:    time.Now().Unix(),
 		}
 
-		buyerAccounts, err := broker.GetAccountsForUser(int64(contract.BuyerID))
+		buyerID := int64(*contract.BuyerID)
+
+		buyerAccounts, err := broker.GetAccountsForUser(buyerID)
 		if err != nil {
 			return ctx.Status(fiber.StatusInternalServerError).JSON(types.Response{
 				Success: false,
@@ -442,7 +444,8 @@ func (c *OTCTradeController) AcceptOTCTrade(ctx *fiber.Ctx) error {
 			})
 		}
 
-		sellerAccounts, err := broker.GetAccountsForUser(int64(contract.SellerID))
+		sellerID := int64(*contract.SellerID)
+		sellerAccounts, err := broker.GetAccountsForUser(sellerID)
 		if err != nil {
 			return ctx.Status(fiber.StatusInternalServerError).JSON(types.Response{
 				Success: false,
@@ -588,7 +591,7 @@ func (c *OTCTradeController) ExecuteOptionContract(ctx *fiber.Ctx) error {
 		})
 	}
 
-	if contract.BuyerID != userID {
+	if contract.BuyerID == nil || *contract.BuyerID != userID {
 		return ctx.Status(fiber.StatusForbidden).JSON(types.Response{
 			Success: false,
 			Error:   "Nemate pravo da izvršite ovaj ugovor",
@@ -609,7 +612,10 @@ func (c *OTCTradeController) ExecuteOptionContract(ctx *fiber.Ctx) error {
 		})
 	}
 
-	buyerAccounts, err := broker.GetAccountsForUser(int64(contract.BuyerID))
+	buyerID := int64(*contract.BuyerID)
+	sellerID := int64(*contract.SellerID)
+
+	buyerAccounts, err := broker.GetAccountsForUser(buyerID)
 	if err != nil {
 		return ctx.Status(fiber.StatusInternalServerError).JSON(types.Response{
 			Success: false,
@@ -617,7 +623,7 @@ func (c *OTCTradeController) ExecuteOptionContract(ctx *fiber.Ctx) error {
 		})
 	}
 
-	sellerAccounts, err := broker.GetAccountsForUser(int64(contract.SellerID))
+	sellerAccounts, err := broker.GetAccountsForUser(sellerID)
 	if err != nil {
 		return ctx.Status(fiber.StatusInternalServerError).JSON(types.Response{
 			Success: false,
@@ -750,13 +756,18 @@ func (c *OTCTradeController) GetActiveOffers(ctx *fiber.Ctx) error {
 
 func (c *OTCTradeController) GetUserOptionContracts(ctx *fiber.Ctx) error {
 	userID := uint(ctx.Locals("user_id").(float64))
+	userIDStr := strconv.FormatUint(uint64(userID), 10)
+
+	const myRouting = 111
+	composite := fmt.Sprintf("%d%s", myRouting, userIDStr)
 
 	var contracts []types.OptionContract
 	if err := db.DB.
 		Preload("Portfolio.Security").
 		Preload("OTCTrade.Portfolio.Security").
-		Find(&contracts, "buyer_id = ? OR seller_id = ?", userID, userID).
-		Error; err != nil {
+		Where(`(buyer_id = ? OR seller_id = ? OR remote_buyer_id = ? OR remote_seller_id = ?)`,
+			userID, userID, composite, composite).
+		Find(&contracts).Error; err != nil {
 		return ctx.Status(fiber.StatusInternalServerError).JSON(types.Response{
 			Success: false,
 			Error:   "Greška prilikom dohvatanja ugovora",
@@ -765,14 +776,17 @@ func (c *OTCTradeController) GetUserOptionContracts(ctx *fiber.Ctx) error {
 	var out []dto.OptionContractDTO
 	for _, oc := range contracts {
 		ticker := oc.OTCTrade.Ticker
+
 		var secName *string
 		if oc.Portfolio != nil && oc.Portfolio.Security.Name != "" {
 			secName = &oc.Portfolio.Security.Name
 		}
 
-		dto := dto.OptionContractDTO{
+		out = append(out, dto.OptionContractDTO{
 			ID:                  oc.ID,
 			PortfolioID:         oc.PortfolioID,
+			BuyerID:             oc.BuyerID,
+			SellerID:            oc.SellerID,
 			Ticker:              ticker,
 			SecurityName:        secName,
 			StrikePrice:         oc.StrikePrice,
@@ -780,13 +794,10 @@ func (c *OTCTradeController) GetUserOptionContracts(ctx *fiber.Ctx) error {
 			Quantity:            oc.Quantity,
 			SettlementDate:      oc.SettlementAt.Format(time.RFC3339),
 			IsExercised:         oc.IsExercised,
-			BuyerID:             &oc.BuyerID,
-			SellerID:            &oc.SellerID,
 			RemoteRoutingNumber: oc.OTCTrade.RemoteRoutingNumber,
-			RemoteBuyerID:       oc.OTCTrade.RemoteBuyerID,
-			RemoteSellerID:      oc.OTCTrade.RemoteSellerID,
-		}
-		out = append(out, dto)
+			RemoteBuyerID:       oc.RemoteBuyerID,
+			RemoteSellerID:      oc.RemoteSellerID,
+		})
 	}
 
 	return ctx.JSON(types.Response{
@@ -1273,7 +1284,7 @@ func (c *OTCTradeController) CloseInterbankNegotiation(ctx *fiber.Ctx) error {
 			"error":   "Negotiation is already closed or resolved",
 		})
 	}
-
+	//popravi last modified
 	trade.Status = "rejected"
 	trade.LastModified = time.Now().Unix()
 	trade.ModifiedBy = fmt.Sprintf("%d%s", routingNum, negID)
@@ -1291,7 +1302,6 @@ func (c *OTCTradeController) CloseInterbankNegotiation(ctx *fiber.Ctx) error {
 	})
 }
 
-// Popravi ovo smece od funkcije
 func (c *OTCTradeController) AcceptInterbankNegotiation(ctx *fiber.Ctx) error {
 	routingStr := ctx.Params("routingNumber")
 	negID := ctx.Params("id")
@@ -1302,6 +1312,7 @@ func (c *OTCTradeController) AcceptInterbankNegotiation(ctx *fiber.Ctx) error {
 			"error":   "Neispravan routingNumber",
 		})
 	}
+	fmt.Println(routingNum)
 
 	var trade types.OTCTrade
 	if err := db.DB.
@@ -1320,9 +1331,15 @@ func (c *OTCTradeController) AcceptInterbankNegotiation(ctx *fiber.Ctx) error {
 		})
 	}
 
+	var actor string
+	if trade.ModifiedBy == *trade.RemoteBuyerID {
+		actor = *trade.RemoteSellerID
+	} else {
+		actor = *trade.RemoteBuyerID
+	}
+
 	trade.Status = "accepted"
-	// nije dobro popravi...
-	trade.ModifiedBy = fmt.Sprintf("%d%s", routingNum, negID)
+	trade.ModifiedBy = actor
 	if err := db.DB.Save(&trade).Error; err != nil {
 		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
@@ -1331,15 +1348,13 @@ func (c *OTCTradeController) AcceptInterbankNegotiation(ctx *fiber.Ctx) error {
 	}
 
 	contractID := uuid.New().String()
-	// Nije dobro popravi namestanje kupca i prodavca i dodaj u model OptionContract polja za remote kupce
-	buyerID, _ := strconv.ParseUint(*trade.RemoteBuyerID, 10, 64)
-	sellerID, _ := strconv.ParseUint(*trade.RemoteSellerID, 10, 64)
 
 	contract := types.OptionContract{
 		OTCTradeID:       trade.ID,
 		RemoteContractID: &contractID,
-		BuyerID:          uint(buyerID),
-		SellerID:         uint(sellerID),
+		RemoteBuyerID:    trade.RemoteBuyerID,
+		RemoteSellerID:   trade.RemoteSellerID,
+		Ticker:           trade.Ticker,
 		Quantity:         trade.Quantity,
 		StrikePrice:      trade.PricePerUnit,
 		Premium:          trade.Premium,
