@@ -6,6 +6,7 @@ require (
 	github.com/Finnhub-Stock-API/finnhub-go/v2 v2.0.19
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/glebarez/sqlite v1.11.0
+	github.com/go-co-op/gocron v1.37.0
 	github.com/go-playground/validator/v10 v10.25.0
 	github.com/gofiber/fiber/v2 v2.52.6
 	github.com/joho/godotenv v1.5.1
@@ -19,7 +20,6 @@ require (
 
 require (
 	github.com/KyleBanks/depth v1.2.1 // indirect
-	github.com/go-co-op/gocron v1.37.0 // indirect
 	github.com/go-openapi/jsonpointer v0.21.1 // indirect
 	github.com/go-openapi/jsonreference v0.21.0 // indirect
 	github.com/go-openapi/spec v0.21.0 // indirect
