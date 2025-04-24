@@ -235,7 +235,16 @@ public class InterbankService implements InterbankOperationService {
         Account localAccount = null;
         Currency localCurrency = null;
         Double amount = 0.0;
+
+
+
         for (PostingDTO posting : originalMessage.getPostings()) {
+
+            if (!(posting.getAsset() instanceof MonetaryAssetDTO)) {
+                forwardCommit(originalNewTxMessage);
+                return;
+            }
+
             System.out.println("Account id: " + posting.getAccount().getId().getUserId() + " routing number: " + posting.getAccount().getId().getRoutingNumber() + " config routing number: " + config.getRoutingNumber());
             if (posting.getAccount().getId().getRoutingNumber().equalsIgnoreCase(config.getRoutingNumber())) {
                 String localAccountId = posting.getAccount().getId().getUserId();
@@ -455,6 +464,39 @@ public class InterbankService implements InterbankOperationService {
     }
 
     private VoteDTO forwardNewTX(InterbankMessageDTO<InterbankTransactionDTO> messageDto) {
+        String jsonString;
+        try {
+            jsonString = objectMapper.writeValueAsString(messageDto);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to convert message to JSON: " + e.getMessage());
+        }
+
+        try {
+            HttpResponse<String> response = requestService.send(
+                    new RequestBuilder()
+                            .method("POST")
+                            .url(config.getTradingServiceUrl())
+                            .body(jsonString)
+                            .addHeader("Content-Type", "application/json")
+            );
+
+            VoteDTO voteDTO = objectMapper.readValue(response.body(), VoteDTO.class);
+            if (voteDTO == null) {
+                throw new RuntimeException("Failed to parse response from trading service");
+            }
+
+            if (voteDTO.getVote() == null || voteDTO.getVote().isEmpty()) {
+                throw new RuntimeException("Invalid response from trading service");
+            }
+
+            return voteDTO;
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to forward message to trading service: " + e.getMessage());
+        }
+    }
+
+    private VoteDTO forwardCommit(InterbankMessageDTO<InterbankTransactionDTO> messageDto) {
+        messageDto.setMessageType(InterbankMessageType.COMMIT_TX);
         String jsonString;
         try {
             jsonString = objectMapper.writeValueAsString(messageDto);
