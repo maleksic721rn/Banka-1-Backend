@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/log"
 	"github.com/google/uuid"
 	"io"
 	"net/http"
@@ -89,6 +90,7 @@ func (c *OTCTradeController) CreateOTCTrade(ctx *fiber.Ctx) error {
 			Status:        "pending",
 		}
 		if err := db.DB.Create(&trade).Error; err != nil {
+			log.Infof("Error while saving offer: %v", err)
 			return ctx.Status(500).JSON(types.Response{false, "", "Greška pri čuvanju ponude"})
 		}
 		return ctx.Status(201).JSON(types.Response{true, fmt.Sprintf("Interna ponuda kreirana: %d", trade.ID), ""})
@@ -97,6 +99,7 @@ func (c *OTCTradeController) CreateOTCTrade(ctx *fiber.Ctx) error {
 	if req.Ticker == nil {
 		return ctx.Status(400).JSON(types.Response{false, "", "Ticker je obavezan za međubankarsku ponudu"})
 	}
+
 	prefix := req.OwnerID[:3]
 	foreignID := req.OwnerID[3:]
 	routingNum, err := strconv.Atoi(prefix)
@@ -160,6 +163,7 @@ func (c *OTCTradeController) CreateOTCTrade(ctx *fiber.Ctx) error {
 	if err := json.NewDecoder(resp.Body).Decode(&fbid); err != nil {
 		return ctx.Status(500).JSON(types.Response{false, "", "Neuspešno parsiranje odgovora Banke 4"})
 	}
+	log.Infof("CreateOTCTrade request: %+v", req)
 
 	modifiedBy := fmt.Sprintf("%d%s", myRouting, localUserIDStr)
 

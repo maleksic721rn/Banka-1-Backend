@@ -137,6 +137,7 @@ public class CustomerService {
         try {
 
             customer = customerRepository.save(customer);
+            log.info("Customer ID: {}", customer.getId());
 
             setPasswordService.saveSetPasswordRequest(verificationCode, customer.getId(), true);
 

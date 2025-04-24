@@ -122,7 +122,10 @@ VALUES (103, 'customer', 'Jovan', 'Pavlovic', 'jpavlovic6521rn@raf.rs', 'jovan',
 
 -- Permissions for Jovan
 INSERT INTO user_permissions (user_id, permission)
-VALUES (103, 'READ_EMPLOYEE');
+SELECT 103
+     , unnest(ARRAY [
+    'READ_EMPLOYEE', 'OTC_TRADING'
+    ]);
 
 -- Customer 4: Nemanja password: Nemanjanemanj@1
 INSERT INTO "user" (id, user_type, first_name, last_name, email, username, phone_number,
