@@ -23,6 +23,9 @@ import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 @Service
@@ -253,6 +256,10 @@ public class OTCService {
             bankTransaction.setFromAccountId(fromAccount);
             bankTransaction.setToAccountId(toAccount);
             bankTransaction.setTransfer(transfer);
+            String dateStr = LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+            String timeStr = LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm"));
+            bankTransaction.setDate(dateStr);
+            bankTransaction.setTime(timeStr);
 
             transactionRepository.save(bankTransaction);
 

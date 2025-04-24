@@ -247,7 +247,7 @@ func assignOwnership(uid string) error {
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				portfolio = types.Portfolio{
-					UserID:      contract.BuyerID,
+					UserID:      *contract.BuyerID,
 					SecurityID:  *contract.SecurityID,
 					Quantity:    0,
 					PublicCount: 0,
@@ -267,8 +267,8 @@ func assignOwnership(uid string) error {
 
 		txn := types.Transaction{
 			ContractID:   contract.ID,
-			BuyerID:      contract.BuyerID,
-			SellerID:     contract.SellerID,
+			BuyerID:      *contract.BuyerID,
+			SellerID:     *contract.SellerID,
 			SecurityID:   *contract.SecurityID,
 			Quantity:     contract.Quantity,
 			PricePerUnit: contract.StrikePrice,
