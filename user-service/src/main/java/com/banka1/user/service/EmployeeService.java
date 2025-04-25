@@ -71,7 +71,7 @@ public class EmployeeService {
         Employee employee = modelMapper.map(createEmployeeRequest, Employee.class);
         employee.setActive(createEmployeeRequest.getActive());
 
-        if (employee.getPosition().equals(Position.NONE)) {
+        if (employee.getPosition() == null || employee.getPosition().equals(Position.NONE)) {
             employee.setPosition(Position.WORKER);
         }
 
