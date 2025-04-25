@@ -833,10 +833,7 @@ public class TransferService {
             Account toAccount = toAccountOtp.get();
 
             Long customerId = fromAccount.getOwnerID();
-            log.info("Before customerId: {}", customerId);
             CustomerDTO customerData = userServiceCustomer.getCustomerById(customerId);
-            log.info("After customerData: {}", customerData);
-
 
             if (customerData == null ) {
                 throw new IllegalArgumentException("Korisnik nije pronađen");

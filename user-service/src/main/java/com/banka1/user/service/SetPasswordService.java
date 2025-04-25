@@ -6,35 +6,26 @@ import com.banka1.user.model.SetPassword;
 import com.banka1.user.repository.CustomerRepository;
 import com.banka1.user.repository.EmployeeRepository;
 import com.banka1.user.repository.SetPasswordRepository;
-
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-
-import org.springframework.context.annotation.Bean;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.crypto.bcrypt.BCrypt;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Base64;
+
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class SetPasswordService {
 	private final SetPasswordRepository setPasswordRepository;
 	private final CustomerRepository customerRepository;
 	private final EmployeeRepository employeeRepository;
-	private final PasswordEncoder encoder;
-
-	public SetPasswordService(SetPasswordRepository setPasswordRepository, CustomerRepository customerRepository,
-	                          EmployeeRepository employeeRepository, PasswordEncoder encoder) {
-		this.setPasswordRepository = setPasswordRepository;
-		this.customerRepository = customerRepository;
-		this.employeeRepository = employeeRepository;
-		this.encoder = encoder;
-	}
 
 	public void saveSetPasswordRequest(String token, long userId, boolean customer) {
 		var now = Instant.now();
@@ -66,13 +57,15 @@ public class SetPasswordService {
 		if (setPassword.getUsed()) {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Token je već korišćen.");
 		}
-		var password = encoder.encode(dto.getPassword());
+		var salt = generateSalt();
+		var password = BCrypt.hashpw(dto.getPassword() + salt, BCrypt.gensalt());
 		if (setPassword.getCustomer()) {
 			var customerOptional = customerRepository.findById(setPassword.getUserId());
 			if (customerOptional.isEmpty())
 				throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Korisnik nije pronađen.");
 			var customer = customerOptional.get();
 			customer.setPassword(password);
+			customer.setSaltPassword(salt);
 			customerRepository.save(customer);
 		} else {
 			var employeeOptional = employeeRepository.findById(setPassword.getUserId());
@@ -80,10 +73,19 @@ public class SetPasswordService {
 				throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Korisnik nije pronađen.");
 			var employee = employeeOptional.get();
 			employee.setPassword(password);
+			employee.setSaltPassword(salt);
 			employeeRepository.save(employee);
 		}
 		setPassword.setUsed(true);
 		setPasswordRepository.save(setPassword);
 		log.debug("Password set");
+	}
+
+
+	private String generateSalt() {
+		byte[] saltBytes = new byte[16];
+		new SecureRandom().nextBytes(saltBytes);
+		return Base64.getEncoder()
+				.encodeToString(saltBytes);
 	}
 }

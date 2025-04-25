@@ -87,7 +87,7 @@ func LoadPortfolios() {
 	log.Println("MSFT Security preuzeta:", msftSecurity.Ticker)
 
 	portfolio1 := types.Portfolio{
-		UserID:        101,
+		UserID:        1,
 		SecurityID:    aaplSecurity.ID, // AAPL
 		Quantity:      20,
 		PurchasePrice: 199.99,
@@ -95,7 +95,7 @@ func LoadPortfolios() {
 	}
 
 	portfolio2 := types.Portfolio{
-		UserID:        101,
+		UserID:        1,
 		SecurityID:    googlSecurity.ID, // GOOGL
 		Quantity:      20,
 		PurchasePrice: 299.99,
@@ -103,7 +103,7 @@ func LoadPortfolios() {
 	}
 
 	portfolio3 := types.Portfolio{
-		UserID:        103,
+		UserID:        3,
 		SecurityID:    msftSecurity.ID, // MSFT
 		Quantity:      20,
 		PurchasePrice: 299.99,
@@ -111,7 +111,7 @@ func LoadPortfolios() {
 	}
 
 	portfolio4 := types.Portfolio{
-		UserID:        103,
+		UserID:        3,
 		SecurityID:    nvdaSecurity.ID, // NVDA
 		Quantity:      20,
 		PurchasePrice: 299.99,
@@ -119,7 +119,7 @@ func LoadPortfolios() {
 	}
 
 	portfolio5 := types.Portfolio{
-		UserID:        103,
+		UserID:        3,
 		SecurityID:    aaplSecurity.ID, // NVDA
 		Quantity:      30,
 		PurchasePrice: 279.99,

@@ -1,20 +1,13 @@
 package com.banka1.banking.cucumber.steps;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
-
-import com.banka1.testing.jwt.JwtTestUtils;
-
-import io.cucumber.java.Before;
-import io.cucumber.java.en.And;
-import io.cucumber.java.en.Given;
-import io.cucumber.java.en.Then;
-import io.cucumber.java.en.When;
-// In your AccountSteps.java
-
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -24,10 +17,14 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.web.client.HttpStatusCodeException;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
-import java.util.HashMap;
-import java.util.Map;
+import io.cucumber.java.Before;
+import io.cucumber.java.en.And;
+import io.cucumber.java.en.Given;
+import io.cucumber.java.en.Then;
+import io.cucumber.java.en.When;
 
 public class AccountSteps {
 
@@ -52,13 +49,22 @@ public class AccountSteps {
         return "http://localhost:" + port;
     }
 
+    @SuppressWarnings({ "unchecked" })
     @Given("employee is logged into the account portal")
     public void employeeIsLoggedIntoAccountPortal() {
+        // Login with employee credentials to get a JWT token
+        Map<String, String> loginData = new HashMap<>();
+        loginData.put("email", "admin@admin.com");
+        loginData.put("password", "admin123");
+
         try {
-            token = JwtTestUtils.generateAdminToken();
-        
+            ResponseEntity<Map> response = restTemplate.postForEntity(
+                    "http://localhost:8081/api/auth/login", loginData, Map.class);
+
+            token = (String) ((Map<String, Object>) response.getBody().get("data")).get("token");
             assertNotNull(token, "Token should be generated during employee login");
-        } catch (Exception e) {
+            System.out.println("Employee authenticated with token length: " + token.length());
+        } catch (RestClientException e) {
             fail("Login failed: " + e.getMessage());
         }
     }
@@ -72,7 +78,7 @@ public class AccountSteps {
     @And("employee enters the account information")
     public void employeeEntersTheAccountInformation() {
         accountData = new HashMap<>();
-        accountData.put("ownerID", 103);
+        accountData.put("ownerID", 1);
         accountData.put("currency", "RSD");
         accountData.put("type", "CURRENT");
         accountData.put("subtype", "STANDARD");
@@ -127,7 +133,6 @@ public class AccountSteps {
         assertEquals(HttpStatus.CREATED, responseEntity.getStatusCode(), "Expected 201 CREATED status");
 
         // Verify the success flag in the response
-        @SuppressWarnings("unchecked")
         Map<String, Object> responseBody = responseEntity.getBody();
         assertTrue((Boolean) responseBody.get("success"), "Response should indicate success");
     }

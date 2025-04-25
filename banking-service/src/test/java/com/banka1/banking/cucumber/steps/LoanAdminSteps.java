@@ -8,8 +8,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
-
-import com.banka1.testing.jwt.JwtTestUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.HttpEntity;
@@ -31,14 +29,16 @@ import io.cucumber.java.en.When;
 
 public class LoanAdminSteps {
 
-    private final long loanIdToApprove = 2;
-    private final long loanIdToDeny = 1;
     @LocalServerPort
     private int port;
+
     private RestTemplate restTemplate;
+
     private String token;
     private ResponseEntity<Map> responseEntity;
     private HttpStatusCodeException exception;
+    private final long loanIdToApprove = 2;
+    private final long loanIdToDeny = 1;
 
     @Before
     public void setup() {
@@ -54,13 +54,21 @@ public class LoanAdminSteps {
     @SuppressWarnings({ "unchecked", "null" })
     @Given("employee is logged into the banking portal")
     public void employeeIsLoggedIntoBankingPortal() {
-        try {
-            // Use the test support module to generate a token
-            token = JwtTestUtils.generateAdminToken();
+        // Login with employee credentials to get a JWT token
+        Map<String, String> loginData = new HashMap<>();
+        loginData.put("email", "admin@admin.com");
+        loginData.put("password", "admin123");
 
+        try {
+            ResponseEntity<Map> response = restTemplate.postForEntity(
+                    "http://localhost:8081/api/auth/login", loginData, Map.class);
+
+            System.out.println("Login response: " + response.getStatusCode());
+
+            token = (String) ((Map<String, Object>) response.getBody().get("data")).get("token");
             assertNotNull(token, "Token should be generated during employee login");
-            System.out.println("Employee authenticated with token length: " + token.length());
-        } catch (Exception e) {
+            System.out.println("Employee authenticated with token: " + token.substring(0, 10) + "...");
+        } catch (RestClientException e) {
             fail("Login failed: " + e.getMessage());
         }
     }

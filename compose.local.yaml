@@ -12,7 +12,7 @@
 services:
   proxy:
     image: caddy:2-alpine
-    #    restart: unless-stopped
+#    restart: unless-stopped
     ports:
       - "80:80"
       - "443:443"
@@ -28,9 +28,10 @@ services:
     # Required on linux for host.docker.internal to be accessible
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    environment:
-      - CADDY_HOST=host.docker.internal
-  #  TODO: Change message broker to RabbitMQ
+    depends_on:
+      - user-service
+      - banking-service
+#  TODO: Change message broker to RabbitMQ
   message-broker:
     image: 'apache/activemq-classic:latest'
     ports:
@@ -43,40 +44,6 @@ services:
       retries: 5
     networks:
       - broker-net
-  gateway:
-    image: 'gateway:0.0.1-SNAPSHOT'
-    ports:
-      - '8080:8080'
-    networks:
-      - proxy-net
-    environment:
-      - USER_SERVICE_URI=http://host.docker.internal:8081
-      - BANKING_SERVICE_URI=http://host.docker.internal:8082
-      - TRADING_SERVICE_URI=http://host.docker.internal:3000
-      - SUPPORT_SERVICE_URI=http://host.docker.internal:8000
-      - SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_IDP_ISSUERURI=https://idp.localhost
-      - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_IDP_CLIENT-ID=gateway-client
-      - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_IDP_CLIENT-SECRET=secrets
-      - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_IDP_REDIRECT-URI=https://localhost/api/login/oauth2/code/idp
-      - SPRING_DATA_REDIS_URL=redis://redis:6379
-
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-      - "idp.localhost:host-gateway"
-  idp:
-    image: 'idp:0.0.1-SNAPSHOT'
-    ports:
-      - "9000:9000"
-    networks:
-      - proxy-net
-      - user-net
-    environment:
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://user-db:5432/user_service_db
-      - SPRING_DATASOURCE_DRIVER_CLASS_NAME=org.postgresql.Driver
-      - SPRING_DATASOURCE_USERNAME=user_service_user
-      - SPRING_DATASOURCE_PASSWORD=user_service_password
-      - LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_WEB=INFO
-      - LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_SECURITY=INFO
   notification-service:
     image: 'notification-service:0.0.1-SNAPSHOT'
     ports:
@@ -99,7 +66,7 @@ services:
       - SPRING_DATASOURCE_PASSWORD=notification_password
       - SPRING_DATASOURCE_DRIVER_CLASS_NAME=org.postgresql.Driver
       - SPRING_H2_CONSOLE_ENABLED=false
-      #     AMQ_URL and AMQ_QUERYPARAMETERS are joined into SPRING_ACTIVEMQ_BROKER_URL, so I just changed that one.
+#     AMQ_URL and AMQ_QUERYPARAMETERS are joined into SPRING_ACTIVEMQ_BROKER_URL, so I just changed that one.
       - SPRING_ACTIVEMQ_BROKER_URL=tcp://message-broker:61616?jms.prefetchPolicy.all=1&jms.redeliveryPolicy.maximumRedeliveries=0
       #    If you want colored output, uncomment the following line:
       - SPRING_OUTPUT_ANSI_ENABLED=always
@@ -109,7 +76,7 @@ services:
       timeout: 5s
       retries: 3
       start_period: 30s
-  # Note: This isn't necessary
+# Note: This isn't necessary
   notification-db:
     image: 'postgres:17-alpine'
     networks:
@@ -203,6 +170,7 @@ services:
       - SPRING_DATASOURCE_PASSWORD=user_service_password
       - SPRING_H2_CONSOLE_ENABLED=false
       - SPRING_ACTIVEMQ_BROKER_URL=tcp://message-broker:61616?jms.prefetchPolicy.all=1&jms.redeliveryPolicy.maximumRedeliveries=0
+      - FRONTEND_URL=https://localhost
       - LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_WEB=INFO
       - LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_SECURITY=INFO
       #    If you want colored output, uncomment the following line:
@@ -270,19 +238,6 @@ services:
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=en_US.UTF-8"
       LANG: en_US.utf8
       LC_ALL: en_US.utf8
-  support-service:
-    image: 'support-service:0.0.1-SNAPSHOT'
-    ports:
-      - '8000:8000'
-    healthcheck:
-      test: [ "CMD-SHELL", "curl localhost:8000/health" ]
-  redis:
-    image: 'redis:latest'
-    ports:
-      - '6379:6379'
-    healthcheck:
-      test: [ "CMD", "redis-cli", "--raw", "incr", "ping" ]
-
 networks:
   broker-net: null
   notification-net: null
