@@ -19,7 +19,7 @@ public class AuthorizedPerson {
     private String lastName;
 
     @Column(nullable = true)
-    private String birthDate;
+    private Long birthDate;
 
     @Column(nullable = false)
     private String phoneNumber;

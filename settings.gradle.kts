@@ -6,8 +6,5 @@ include(
     "banking-service",
     "common",
     "trading-service",
-    "support-service",
-    "idp",
-    "gateway",
-    "test-support",
+    "support-service"
 )

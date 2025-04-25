@@ -3,13 +3,11 @@ import com.banka1.banking.dto.CustomerDTO;
 import com.banka1.common.listener.MessageHelper;
 import jakarta.jms.JMSException;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jms.core.JmsTemplate;
 import org.springframework.stereotype.Service;
 
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class UserServiceCustomer {

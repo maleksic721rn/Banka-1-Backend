@@ -3,10 +3,8 @@ package com.banka1.banking.cucumber.steps;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
-import com.banka1.testing.jwt.JwtTestUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.HttpEntity;
@@ -51,15 +49,21 @@ public class TransferSteps {
         return "http://localhost:" + port;
     }
 
+    @SuppressWarnings({ "unchecked" })
     @Given("customer is logged into the banking portal for transfers")
     public void customerIsLoggedIntoBankingPortal() {
-        try {
-            // Use the test support module to generate a token
-            token = JwtTestUtils.generateCustomerToken("jpavlovic6521rn@raf.rs", 103L, List.of("READ_CUSTOMER"));
+        Map<String, String> loginData = new HashMap<>();
+        loginData.put("email", "marko.markovic@banka.com");
+        loginData.put("password", "M@rko12345");
 
-            assertNotNull(token, "Token should be generated during employee login");
-            System.out.println("Employee authenticated with token length: " + token.length());
-        } catch (Exception e) {
+        try {
+            ResponseEntity<Map> response = restTemplate.postForEntity(
+                    "http://localhost:8081/api/auth/login", loginData, Map.class);
+
+            token = (String) ((Map<String, Object>) response.getBody().get("data")).get("token");
+            assertNotNull(token, "Token should be generated during login");
+            System.out.println("Customer authenticated with token length: " + token.length());
+        } catch (RestClientException e) {
             fail("Login failed: " + e.getMessage());
         }
     }
@@ -79,7 +83,7 @@ public class TransferSteps {
         internalTransferData = new HashMap<>();
         internalTransferData.put("fromAccountId", 105);
         internalTransferData.put("toAccountId", 106);
-        internalTransferData.put("amount", 1000.0);
+        internalTransferData.put("amount", 1000);
     }
 
     @When("customer does not fill out the transfer form")
@@ -99,7 +103,6 @@ public class TransferSteps {
         moneyTransferData.put("payementCode", "289");
         moneyTransferData.put("payementReference", "222");
         moneyTransferData.put("payementDescription", "Test Payment");
-        moneyTransferData.put("savedReceiverId", 0);
     }
 
     @When("customer does not fill out the payment form")

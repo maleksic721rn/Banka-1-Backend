@@ -1,15 +1,15 @@
 package com.banka1.banking.controllers;
 
+import com.banka1.banking.aspect.AccountAuthorization;
 import com.banka1.banking.dto.TransactionResponseDTO;
 import com.banka1.banking.dto.request.CreateAccountDTO;
 import com.banka1.banking.dto.request.UpdateAccountDTO;
 import com.banka1.banking.dto.request.UserUpdateAccountDTO;
 import com.banka1.banking.models.Account;
 import com.banka1.banking.services.AccountService;
+import com.banka1.banking.services.implementation.AuthService;
 import com.banka1.banking.utils.ResponseTemplate;
 import com.banka1.banking.utils.ResponseMessage;
-import com.banka1.common.security.annotation.IsEmployed;
-import com.banka1.common.security.annotation.UserClaim;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
@@ -20,7 +20,6 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import java.util.HashMap;
 import java.util.List;
@@ -32,6 +31,7 @@ import java.util.Map;
 @Tag(name = "Account API", description = "API za upravljanje racunima")
 public class AccountController {
     private final AccountService accountService;
+    private final AuthService authService;
 
     /// pristup imaju samo zaposleni
     /// Da bi zaposleni mogao da kreira novi račun, potrebno je da se prijavi u aplikaciju.
@@ -68,12 +68,11 @@ public class AccountController {
             """))
         )
     })
-//   @AccountAuthorization(employeeOnlyOperation = true)
-    @IsEmployed
-    public ResponseEntity<?> createAccount(@Valid @RequestBody CreateAccountDTO createAccountDTO, @UserClaim Long id) {
+   @AccountAuthorization(employeeOnlyOperation = true)
+    public ResponseEntity<?> createAccount(@Valid @RequestBody CreateAccountDTO createAccountDTO, @RequestHeader(value = "Authorization", required = false) String authorization) {
         Account savedAccount;
         try {
-            savedAccount = accountService.createAccount(createAccountDTO, id);
+            savedAccount = accountService.createAccount(createAccountDTO, authService.parseToken(authService.getToken(authorization)).get("id", Long.class));
         } catch (RuntimeException e) {
 
             return ResponseTemplate.create(ResponseEntity.status(HttpStatus.BAD_REQUEST), false, null, e.getMessage());
@@ -144,8 +143,7 @@ public class AccountController {
             """))
         )
     })
-//    @AccountAuthorization
-    @IsEmployed
+    @AccountAuthorization
     public ResponseEntity<?> getAllAccounts() {
         List<Account> accounts = accountService.getAllAccounts();
 
@@ -207,8 +205,7 @@ public class AccountController {
             """))
         )
     })
-//    @AccountAuthorization
-    @PreAuthorize("authentication.isEmployed or authentication.userId == #userId or authentication.isAdmin")
+    @AccountAuthorization
     public ResponseEntity<?> getAccountsByOwner(@PathVariable Long userId) {
 
         List<Account> accounts = accountService.getAccountsByOwnerId(userId);
@@ -276,8 +273,7 @@ public class AccountController {
             """))
         )
     })
-//    @AccountAuthorization(employeeOnlyOperation = true)
-    @IsEmployed
+    @AccountAuthorization(employeeOnlyOperation = true)
     public ResponseEntity<?> updateAccount(
             @PathVariable Long accountId,
             @RequestBody UpdateAccountDTO updateAccountDTO) {
@@ -340,7 +336,6 @@ public class AccountController {
             """))
         )
     })
-    @PreAuthorize("authentication.isEmployed  or authentication.isAdmin or (authentication.userId == #userId and @accountSecurity.isAccountOwner(#accountId, authentication.userId))")
     public ResponseEntity<?> updateUserAccount(
             @PathVariable Long userId,
             @PathVariable Long accountId,
@@ -395,8 +390,7 @@ public class AccountController {
             """))
         )
     })
-//    @AccountAuthorization
-    @PreAuthorize("authentication.isEmployed or authentication.isAdmin or @accountSecurity.isAccountOwner(#accountId, authentication.userId)")
+    @AccountAuthorization
     public ResponseEntity<?> getTransactionsForAccount(@PathVariable Long accountId) {
 
         // Proveri da li račun postoji

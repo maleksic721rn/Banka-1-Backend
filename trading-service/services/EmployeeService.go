@@ -2,7 +2,6 @@ package services
 
 import (
 	"banka1.com/dto"
-	"banka1.com/shared"
 	"encoding/json"
 	"fmt"
 	"github.com/gofiber/fiber/v2"
@@ -78,7 +77,7 @@ func GetEmployeesFiltered(c *fiber.Ctx, name, surname, email, position string) (
 	req.Header.Add("Authorization", "Bearer "+tokenStr)
 
 	// Slanje GET zahteva
-	client := shared.HttpClient()
+	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
 		fmt.Println("ERROR: Failed to send HTTP request:", err)

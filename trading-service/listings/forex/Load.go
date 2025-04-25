@@ -10,8 +10,6 @@ import (
 	"banka1.com/types"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/log"
-
-	"banka1.com/shared"
 )
 
 var currencies = []string{
@@ -35,9 +33,7 @@ func LoadDefaultForexPairs() {
 
 func CreatePairsFromAPI(base string) error {
 	url := fmt.Sprintf("https://latest.currency-api.pages.dev/v1/currencies/%s.json", strings.ToLower(base))
-	agent := shared.FiberAgent()
-	agent.Request().SetRequestURI(url)
-	agent.Request().Header.SetMethod(fiber.MethodGet)
+	agent := fiber.Get(url)
 	statusCode, body, errs := agent.Bytes()
 	if len(errs) > 0 {
 		log.Warnf("Failed to fetch %s: %v\n", url, errs)

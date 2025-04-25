@@ -1,13 +1,6 @@
 package com.banka1.user.controllers;
 
 
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.anyList;
-import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
 import com.banka1.common.model.Permission;
 import com.banka1.user.DTO.banking.CreateAccountWithoutOwnerIdDTO;
 import com.banka1.user.DTO.banking.helper.AccountStatus;
@@ -20,13 +13,11 @@ import com.banka1.user.DTO.response.CustomerResponse;
 import com.banka1.user.mapper.CustomerMapper;
 import com.banka1.user.model.Customer;
 import com.banka1.user.model.helper.Gender;
-import com.banka1.user.repository.UserRepository;
 import com.banka1.user.service.CustomerService;
+import com.banka1.user.service.AuthService;
 import com.fasterxml.jackson.databind.ObjectMapper;
-
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
@@ -44,18 +35,24 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.anyList;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
 class CustomerControllerTest {
 
     private MockMvc mockMvc;
+    @Mock
+    private AuthService authService;
 
     @Mock
     private Claims claims;
 
     @Mock
     private CustomerService customerService;
-
-    @Mock
-    private UserRepository<Customer> userRepository;
 
     @InjectMocks
     private CustomerController customerController;
@@ -93,8 +90,9 @@ class CustomerControllerTest {
         customer.setId(1L);
         var claims = Jwts.claims().add("id", 1L).build();
 
-        when(customerService.createCustomer(any(), any())).thenReturn(customer);
+        when(customerService.createCustomer(any(CreateCustomerRequest.class), anyLong())).thenReturn(customer);
 
+        when(authService.parseToken(any())).thenReturn(claims);
 
         mockMvc.perform(post("/api/customer")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -178,9 +176,9 @@ class CustomerControllerTest {
 
     @Test
     void findByIdSuccess() throws Exception {
-        var id = 1L;
+        String id = "1";
         var response = new CustomerResponse(
-                id,
+                1L,
                 "Petar",
                 "Petrovic",
                 "ppetrovic",
@@ -215,7 +213,19 @@ class CustomerControllerTest {
                 .andExpect(MockMvcResultMatchers.status().isNotFound())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.success").value(false));
 
-        Mockito.verify(customerService).findById(1L);
+        Mockito.verify(customerService).findById(id);
     }
-    
+
+    @Test
+    void findByIdBadRequest() throws Exception {
+        String id = "1";
+
+        Mockito.when(customerService.findById(id)).thenThrow(new RuntimeException("Poruka"));
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/api/customer/" + id))
+                .andExpect(MockMvcResultMatchers.status().isBadRequest())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.success").value(false));
+
+        Mockito.verify(customerService).findById(id);
+    }
 }

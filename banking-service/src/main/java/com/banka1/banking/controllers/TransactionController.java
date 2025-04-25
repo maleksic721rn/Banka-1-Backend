@@ -1,9 +1,9 @@
 package com.banka1.banking.controllers;
 
+import com.banka1.banking.aspect.AccountAuthorization;
 import com.banka1.banking.models.Transaction;
 import com.banka1.banking.services.TransactionService;
 import com.banka1.banking.utils.ResponseTemplate;
-import com.banka1.common.security.annotation.IsEmployed;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
@@ -13,7 +13,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -82,8 +81,7 @@ public class TransactionController {
                 """))
         )
     })
-//    @AccountAuthorization
-    @PreAuthorize("authentication.userId == #userId or authentication.isEmployed or authentication.isAdmin")
+    @AccountAuthorization
     public ResponseEntity<?> getAllTransactions(@RequestHeader(value = "Authorization", required = false) String authorization, @PathVariable Long userId) {
         try {
             if (!transactionService.userExists(userId)) {
@@ -148,8 +146,7 @@ public class TransactionController {
             """))
         )
     })
-//    @AccountAuthorization(employeeOnlyOperation = true)
-    @IsEmployed
+    @AccountAuthorization(employeeOnlyOperation = true)
     public ResponseEntity<?> getAllTransactionsAdmin(@PathVariable Long userId, @RequestHeader(value = "Authorization", required = false) String authorization) {
         try {
             List<Transaction> transactions = transactionService.getTransactionsByUserId(userId);

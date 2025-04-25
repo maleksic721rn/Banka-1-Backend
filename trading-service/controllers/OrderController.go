@@ -6,7 +6,6 @@ import (
 	"banka1.com/dto"
 	"banka1.com/middlewares"
 	"banka1.com/services"
-	"banka1.com/shared"
 	"banka1.com/types"
 	"encoding/json"
 	"fmt"
@@ -326,7 +325,7 @@ func (oc *OrderController) CreateOrder(c *fiber.Ctx) error {
 				})
 			}
 		} else {
-			client := shared.HttpClient()
+			client := &http.Client{}
 			req, _ := http.NewRequest("GET", fmt.Sprintf("%s/loans/has-approved-loan/%d", os.Getenv("BANKING_SERVICE"), orderRequest.UserID), nil)
 			//url := fmt.Sprintf("%s/orders/execute/%s", os.Getenv("BANKING_SERVICE"), token)
 
@@ -710,17 +709,19 @@ func (oc *OrderController) InitiateOrderTransaction(c *fiber.Ctx) error {
 		return fiber.ErrBadRequest
 	}
 
-	url := os.Getenv("BANKING_SERVICE") + "/order/initiate/"
-
-	authHeader, err := services.GetOAuthService().GetAuthorizationHeader()
-
+	token, err := middlewares.NewOrderTokenDirect(
+		initDto.Uid,
+		initDto.BuyerAccountId,
+		initDto.SellerAccountId,
+		initDto.Amount,
+	)
 	if err != nil {
 		return fiber.ErrInternalServerError
 	}
-	agent := shared.FiberAgent()
-	agent.Request().SetRequestURI(url)
-	agent.Request().Header.SetMethod(http.MethodPost)
-	agent.Request().Header.Add("Authorization", authHeader)
+
+	url := os.Getenv("BANKING_SERVICE") + "/order/initiate/" + token
+
+	agent := fiber.Post(url)
 	statusCode, body, errs := agent.Bytes()
 
 	if len(errs) != 0 {

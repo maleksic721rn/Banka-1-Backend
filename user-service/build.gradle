@@ -12,7 +12,7 @@ version = '0.0.1-SNAPSHOT'
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(21)
+        languageVersion = JavaLanguageVersion.of(17)
     }
 }
 
@@ -30,8 +30,6 @@ repositories {
 
 
 dependencies {
-    developmentOnly 'org.springframework.boot:spring-boot-devtools'
-
     implementation 'org.springframework.boot:spring-boot-starter'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'org.springframework.boot:spring-boot-starter-web'
@@ -49,13 +47,12 @@ dependencies {
 
     implementation project(":common")
     implementation project(path: ':common')
-    implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
 
+    runtimeOnly 'org.aspectj:aspectjweaver'
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
     runtimeOnly 'org.apache.httpcomponents.client5:httpclient5'
     implementation 'org.modelmapper:modelmapper:3.1.1'
     implementation 'org.springframework.boot:spring-boot-starter-security'
-
-    testImplementation project(":test-support")
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.security:spring-security-test'
@@ -105,7 +102,7 @@ jacocoTestCoverageVerification {
     }
 }
 
-tasks.named('test', Test) {
+tasks.named('test') {
     useJUnitPlatform()
     systemProperty "cucumber.execution.parallel.enabled", "false"
     finalizedBy jacocoTestReport

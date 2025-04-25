@@ -1,7 +1,6 @@
 package option
 
 import (
-	"banka1.com/shared"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -63,7 +62,7 @@ type YahooOptionsApiResponse struct {
 }
 
 func getYahooCookie() (*http.Cookie, error) {
-	client := shared.HttpClient()
+	client := &http.Client{}
 	req, _ := http.NewRequest("GET", "https://fc.yahoo.com", nil)
 	req.Header.Set("User-Agent", "Mozilla/5.0")
 
@@ -83,7 +82,7 @@ func getYahooCookie() (*http.Cookie, error) {
 }
 
 func getYahooCrumb(cookie *http.Cookie) (string, error) {
-	client := shared.HttpClient()
+	client := &http.Client{}
 	req, _ := http.NewRequest("GET", "https://query2.finance.yahoo.com/v1/test/getcrumb", nil)
 	req.AddCookie(cookie)
 	req.Header.Set("User-Agent", "Mozilla/5.0")
@@ -115,7 +114,7 @@ func FetchYahoo(ticker string) (YahooOptionsApiResponse, error) {
 	log.Infof("Fetching Yahoo options for ticker: %s", ticker)
 	log.Infof("URL: %s", url)
 
-	client := shared.HttpClient()
+	client := &http.Client{}
 	req, _ := http.NewRequest("GET", url, nil)
 	req.AddCookie(cookie)
 	req.Header.Set("User-Agent", "Mozilla/5.0")
